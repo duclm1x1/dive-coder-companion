@@ -23,6 +23,7 @@ import { MonitorSidebar } from "@/components/chat/MonitorSidebar";
 import { ThinkingPanel } from "@/components/chat/ThinkingPanel";
 import { SkillsBrowser } from "@/components/chat/SkillsBrowser";
 import { WorkspaceSwitcher } from "@/components/chat/WorkspaceSwitcher";
+import { InlineThinking } from "@/components/chat/InlineThinking";
 import { SLASH_COMMANDS, DIVE_CODER_VERSION } from "@/lib/dive-coder-config";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { exportToMarkdown, downloadExport, printToPDF } from "@/lib/exportChat";
@@ -494,66 +495,78 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
             <WelcomeHero onSelectPrompt={handleSelectPrompt} />
           ) : (
             <div className="max-w-3xl mx-auto py-6 px-4 space-y-6">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    "flex gap-4 animate-fade-in",
-                    message.role === "user" ? "justify-end" : "justify-start"
-                  )}
-                >
-                  {message.role === "assistant" && (
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <Bot className="w-4 h-4 text-primary-foreground" />
-                    </div>
-                  )}
+              {messages.map((message) => {
+                const isThinking = message.role === "assistant" && 
+                  (message.status === "thinking" || message.status === "generating") && 
+                  !message.content;
+                
+                return (
                   <div
+                    key={message.id}
                     className={cn(
-                      "max-w-[85%] rounded-2xl px-4 py-3",
-                      message.role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-card border border-border"
+                      "flex gap-3 animate-fade-in",
+                      message.role === "user" ? "justify-end" : "justify-start"
                     )}
                   >
-                    {message.role === "assistant" && message.status === "thinking" && !message.content ? (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">Thinking...</span>
-                      </div>
-                    ) : (
-                      <div className="prose prose-sm dark:prose-invert max-w-none">
-                        <ReactMarkdown
-                          components={{
-                            code({ className, children, ...props }) {
-                              const match = /language-(\w+)/.exec(className || '');
-                              const isInline = !match;
-                              return isInline ? (
-                                <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
-                                  {children}
-                                </code>
-                              ) : (
-                                <CodeBlock language={match[1]}>
-                                  {String(children).replace(/\n$/, '')}
-                                </CodeBlock>
-                              );
-                            },
-                          }}
-                        >
-                          {message.content || "..."}
-                        </ReactMarkdown>
+                    {/* Assistant avatar - only show when not thinking (thinking has its own orb) */}
+                    {message.role === "assistant" && !isThinking && (
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <Bot className="w-4 h-4 text-primary-foreground" />
                       </div>
                     )}
-                    {message.status === "generating" && (
-                      <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-1 rounded-sm" />
+                    
+                    {/* Message content */}
+                    {isThinking ? (
+                      <InlineThinking 
+                        currentStep={currentStep}
+                        steps={message.thinkingSteps}
+                        isGenerating={message.status === "generating"}
+                      />
+                    ) : message.content ? (
+                      <div
+                        className={cn(
+                          "max-w-[85%] rounded-2xl px-4 py-3",
+                          message.role === "user"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-card border border-border"
+                        )}
+                      >
+                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                          <ReactMarkdown
+                            components={{
+                              code({ className, children, ...props }) {
+                                const match = /language-(\w+)/.exec(className || '');
+                                const isInline = !match;
+                                return isInline ? (
+                                  <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+                                    {children}
+                                  </code>
+                                ) : (
+                                  <CodeBlock language={match[1]}>
+                                    {String(children).replace(/\n$/, '')}
+                                  </CodeBlock>
+                                );
+                              },
+                            }}
+                          >
+                            {message.content}
+                          </ReactMarkdown>
+                        </div>
+                        {message.status === "generating" && (
+                          <span className="inline-block w-1.5 h-5 bg-primary animate-pulse rounded-sm align-middle ml-0.5" />
+                        )}
+                      </div>
+                    ) : null}
+                    
+                    {/* User avatar */}
+                    {message.role === "user" && (
+                      <div className="w-8 h-8 rounded-full bg-foreground/10 flex items-center justify-center flex-shrink-0">
+                        <User className="w-4 h-4 text-foreground" />
+                      </div>
                     )}
                   </div>
-                  {message.role === "user" && (
-                    <div className="w-8 h-8 rounded-full bg-foreground/10 flex items-center justify-center flex-shrink-0">
-                      <User className="w-4 h-4 text-foreground" />
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
               <div ref={messagesEndRef} />
             </div>
           )}
