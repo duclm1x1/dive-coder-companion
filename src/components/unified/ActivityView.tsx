@@ -32,6 +32,7 @@ import { exportToMarkdown, downloadExport, printToPDF } from "@/lib/exportChat";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChatContext } from "@/contexts/ChatContext";
+import { backendApi, extractUrls } from "@/lib/api/backend";
 
 interface AIModel {
   id: string;
@@ -301,9 +302,14 @@ export function ActivityView({ performance: initialPerformance, onSendCommand, o
       setConversationTitle(userMessage.slice(0, 50) + (userMessage.length > 50 ? "..." : ""));
     }
 
+    // Check if message contains URLs to scrape
+    const urls = extractUrls(userMessage);
+    let scrapedContent = "";
+
     // Show thinking steps
     const steps = [
       "Understanding your request...",
+      ...(urls.length > 0 ? [`Fetching content from ${urls.length} URL(s)...`] : []),
       `Connecting to ${selectedModel.name}...`,
       "Processing with AI...",
     ];
@@ -326,6 +332,22 @@ export function ActivityView({ performance: initialPerformance, onSendCommand, o
         ));
       }
 
+      // Scrape URLs if present
+      if (urls.length > 0) {
+        setCurrentStep("Scraping web content...");
+        for (const url of urls.slice(0, 3)) { // Max 3 URLs
+          try {
+            const result = await backendApi.scrape(url);
+            if (result.success && result.data) {
+              const { markdown, metadata } = result.data;
+              scrapedContent += `\n\n--- Content from ${metadata?.title || url} ---\n${markdown?.slice(0, 15000) || "No content extracted"}\n`;
+            }
+          } catch (e) {
+            console.warn(`Failed to scrape ${url}:`, e);
+          }
+        }
+      }
+
       if (signal.aborted) return;
 
       setCurrentStep("Generating response...");
@@ -338,6 +360,11 @@ export function ActivityView({ performance: initialPerformance, onSendCommand, o
         .filter(m => m.status === "complete")
         .map(m => ({ role: m.role, content: m.content }));
 
+      // Append scraped content to user message if available
+      const enrichedMessage = scrapedContent
+        ? `${userMessage}\n\n[Scraped Web Content]${scrapedContent}`
+        : userMessage;
+
       const authToken = getAuthToken();
 
       const response = await fetch(CHAT_URL, {
@@ -347,7 +374,7 @@ export function ActivityView({ performance: initialPerformance, onSendCommand, o
           "Authorization": `Bearer ${authToken}`,
         },
         body: JSON.stringify({
-          messages: [...conversationHistory, { role: "user", content: userMessage }],
+          messages: [...conversationHistory, { role: "user", content: enrichedMessage }],
           model: selectedModel.id,
         }),
         signal,
