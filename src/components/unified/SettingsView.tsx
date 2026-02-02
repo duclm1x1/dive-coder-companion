@@ -1,232 +1,307 @@
-import { Save, RotateCcw } from "lucide-react";
+import { useState } from "react";
+import { Save, RotateCcw, Key, Bell, Monitor, Palette, Database, Shield, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SkinSelector } from "@/components/SkinSelector";
 
+type SettingsTab = "general" | "api" | "notifications" | "appearance";
+
 export function SettingsView() {
+  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+
+  const tabs = [
+    { id: "general" as SettingsTab, label: "General", icon: Monitor },
+    { id: "api" as SettingsTab, label: "API Keys", icon: Key },
+    { id: "notifications" as SettingsTab, label: "Notifications", icon: Bell },
+    { id: "appearance" as SettingsTab, label: "Appearance", icon: Palette },
+  ];
+
   return (
-    <div className="p-6 space-y-6 overflow-auto">
+    <div className="p-6 max-w-4xl mx-auto space-y-6 overflow-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-          <p className="text-muted-foreground mt-1">Configure Dive Coder preferences</p>
+          <p className="text-muted-foreground mt-1">Configure your Dive Monitor preferences</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="border-border">
+          <Button variant="outline" size="sm" className="border-border">
             <RotateCcw className="w-4 h-4 mr-2" />
             Reset
           </Button>
-          <Button className="bg-primary hover:bg-primary/90">
+          <Button size="sm" className="bg-primary hover:bg-primary/90">
             <Save className="w-4 h-4 mr-2" />
-            Save Changes
+            Save
           </Button>
         </div>
       </div>
 
-      <Tabs defaultValue="general">
-        <TabsList className="bg-muted">
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="engine">Engine</TabsTrigger>
-          <TabsTrigger value="monitor">Monitor</TabsTrigger>
-          <TabsTrigger value="appearance">Appearance</TabsTrigger>
-        </TabsList>
+      {/* Tab Navigation */}
+      <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                activeTab === tab.id
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
 
-        <TabsContent value="general" className="mt-6 space-y-6">
-          <div className="p-5 rounded-xl bg-card border border-border space-y-6">
-            <h3 className="font-medium text-foreground">Project Settings</h3>
-            
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="projectName" className="text-foreground">Project Name</Label>
-                <Input
-                  id="projectName"
-                  defaultValue="dive-coder"
-                  className="bg-muted border-border"
-                />
+      {/* Content */}
+      <div className="space-y-6">
+        {activeTab === "general" && (
+          <>
+            <div className="p-5 rounded-xl bg-card border border-border space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                  <Database className="w-5 h-5 text-slate-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground">Project Configuration</h3>
+                  <p className="text-sm text-muted-foreground">Basic project settings</p>
+                </div>
               </div>
               
-              <div className="grid gap-2">
-                <Label htmlFor="workingDir" className="text-foreground">Working Directory</Label>
-                <Input
-                  id="workingDir"
-                  defaultValue="/home/user/projects/dive-coder"
-                  className="bg-muted border-border"
-                />
-              </div>
-
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <Label className="text-foreground">Auto-save</Label>
-                  <p className="text-xs text-muted-foreground">Automatically save changes</p>
+              <div className="grid gap-4 pt-2">
+                <div className="grid gap-2">
+                  <Label className="text-foreground text-sm">Project Name</Label>
+                  <Input
+                    defaultValue="dive-monitor"
+                    className="bg-muted border-border"
+                  />
                 </div>
-                <Switch defaultChecked />
-              </div>
-
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <Label className="text-foreground">Notifications</Label>
-                  <p className="text-xs text-muted-foreground">Show desktop notifications</p>
+                
+                <div className="grid gap-2">
+                  <Label className="text-foreground text-sm">Working Directory</Label>
+                  <Input
+                    defaultValue="/home/user/projects"
+                    className="bg-muted border-border"
+                  />
                 </div>
-                <Switch defaultChecked />
               </div>
             </div>
-          </div>
-        </TabsContent>
 
-        <TabsContent value="engine" className="mt-6 space-y-6">
-          <div className="p-5 rounded-xl bg-card border border-border space-y-6">
-            <h3 className="font-medium text-foreground">Dual Thinking Engine</h3>
-            
-            <div className="grid gap-4">
-              <div className="flex items-center justify-between py-2">
+            <div className="p-5 rounded-xl bg-card border border-border space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-cyan-50 flex items-center justify-center">
+                  <Zap className="w-5 h-5 text-cyan-600" />
+                </div>
                 <div>
-                  <Label className="text-foreground">Enable Dual Thinking</Label>
-                  <p className="text-xs text-muted-foreground">Use both primary and secondary analysis</p>
+                  <h3 className="font-semibold text-foreground">Performance</h3>
+                  <p className="text-sm text-muted-foreground">Monitoring settings</p>
+                </div>
+              </div>
+              
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-foreground">Real-time Updates</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">Stream metrics as they happen</p>
+                  </div>
+                  <Switch defaultChecked />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-foreground">Auto-refresh Dashboard</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">Refresh data every 5 seconds</p>
+                  </div>
+                  <Switch defaultChecked />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label className="text-foreground text-sm">Refresh Interval (seconds)</Label>
+                  <Input
+                    type="number"
+                    defaultValue="5"
+                    className="bg-muted border-border w-24"
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === "api" && (
+          <>
+            <div className="p-5 rounded-xl bg-card border border-border space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center">
+                  <Key className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground">API Configuration</h3>
+                  <p className="text-sm text-muted-foreground">Configure your AI provider keys</p>
+                </div>
+              </div>
+              
+              <div className="grid gap-4 pt-2">
+                <div className="grid gap-2">
+                  <Label className="text-foreground text-sm">OpenAI API Key</Label>
+                  <Input
+                    type="password"
+                    placeholder="sk-..."
+                    className="bg-muted border-border"
+                  />
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label className="text-foreground text-sm">Anthropic API Key</Label>
+                  <Input
+                    type="password"
+                    placeholder="sk-ant-..."
+                    className="bg-muted border-border"
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label className="text-foreground text-sm">Default Provider</Label>
+                  <select className="w-full p-2.5 rounded-md bg-muted border border-border text-sm text-foreground">
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="local">Local Model</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 rounded-xl bg-card border border-border space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground">Security</h3>
+                  <p className="text-sm text-muted-foreground">API security settings</p>
+                </div>
+              </div>
+              
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-foreground">Encrypt API Keys</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">Store keys with encryption</p>
+                  </div>
+                  <Switch defaultChecked />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-foreground">Rate Limiting</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">Limit API calls per minute</p>
+                  </div>
+                  <Switch defaultChecked />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === "notifications" && (
+          <div className="p-5 rounded-xl bg-card border border-border space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                <Bell className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Notification Preferences</h3>
+                <p className="text-sm text-muted-foreground">Choose what alerts you receive</p>
+              </div>
+            </div>
+            
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-foreground">Task Completion</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Notify when tasks finish</p>
                 </div>
                 <Switch defaultChecked />
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="confidence" className="text-foreground">Minimum Confidence (%)</Label>
-                <Input
-                  id="confidence"
-                  type="number"
-                  defaultValue="80"
-                  className="bg-muted border-border w-32"
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="mode" className="text-foreground">Analysis Mode</Label>
-                <select
-                  id="mode"
-                  defaultValue="balanced"
-                  className="w-full p-2 rounded-md bg-muted border border-border text-sm text-foreground"
-                >
-                  <option value="fast">Fast</option>
-                  <option value="balanced">Balanced</option>
-                  <option value="thorough">Thorough</option>
-                </select>
-              </div>
-
-              <div className="flex items-center justify-between py-2">
+              <div className="flex items-center justify-between">
                 <div>
-                  <Label className="text-foreground">Auto-patch</Label>
-                  <p className="text-xs text-muted-foreground">Automatically fix simple issues</p>
+                  <Label className="text-foreground">Error Alerts</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Notify on failures</p>
+                </div>
+                <Switch defaultChecked />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-foreground">Cost Alerts</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Warn when costs exceed threshold</p>
+                </div>
+                <Switch />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-foreground">Sound Effects</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Play sounds on notifications</p>
                 </div>
                 <Switch />
               </div>
             </div>
           </div>
+        )}
 
-          <div className="p-5 rounded-xl bg-card border border-border space-y-6">
-            <h3 className="font-medium text-foreground">Code Review Settings</h3>
-            
-            <div className="grid gap-4">
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <Label className="text-foreground">Security Checks</Label>
-                  <p className="text-xs text-muted-foreground">Check for security vulnerabilities</p>
-                </div>
-                <Switch defaultChecked />
+        {activeTab === "appearance" && (
+          <div className="p-5 rounded-xl bg-card border border-border space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
+                <Palette className="w-5 h-5 text-purple-600" />
               </div>
-
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <Label className="text-foreground">Best Practices</Label>
-                  <p className="text-xs text-muted-foreground">Enforce coding best practices</p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <Label className="text-foreground">Performance Analysis</Label>
-                  <p className="text-xs text-muted-foreground">Analyze code performance</p>
-                </div>
-                <Switch defaultChecked />
+              <div>
+                <h3 className="font-semibold text-foreground">Theme & Appearance</h3>
+                <p className="text-sm text-muted-foreground">Customize the look and feel</p>
               </div>
             </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="monitor" className="mt-6 space-y-6">
-          <div className="p-5 rounded-xl bg-card border border-border space-y-6">
-            <h3 className="font-medium text-foreground">Monitor Settings</h3>
             
-            <div className="grid gap-4">
+            <div className="space-y-4 pt-2">
               <div className="grid gap-2">
-                <Label htmlFor="refreshRate" className="text-foreground">Refresh Rate (seconds)</Label>
-                <Input
-                  id="refreshRate"
-                  type="number"
-                  defaultValue="2"
-                  className="bg-muted border-border w-32"
-                />
-              </div>
-
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <Label className="text-foreground">Real-time Updates</Label>
-                  <p className="text-xs text-muted-foreground">Stream metrics in real-time</p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <Label className="text-foreground">Event Logging</Label>
-                  <p className="text-xs text-muted-foreground">Log all system events</p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="logRetention" className="text-foreground">Log Retention (days)</Label>
-                <Input
-                  id="logRetention"
-                  type="number"
-                  defaultValue="30"
-                  className="bg-muted border-border w-32"
-                />
-              </div>
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="appearance" className="mt-6 space-y-6">
-          <div className="p-5 rounded-xl bg-card border border-border space-y-6">
-            <h3 className="font-medium text-foreground">Theme</h3>
-            
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label className="text-foreground">Skin</Label>
+                <Label className="text-foreground text-sm">Theme Skin</Label>
                 <SkinSelector />
               </div>
 
-              <div className="flex items-center justify-between py-2">
+              <div className="flex items-center justify-between">
                 <div>
                   <Label className="text-foreground">Animations</Label>
-                  <p className="text-xs text-muted-foreground">Enable UI animations</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Enable UI animations</p>
                 </div>
                 <Switch defaultChecked />
               </div>
 
-              <div className="flex items-center justify-between py-2">
+              <div className="flex items-center justify-between">
                 <div>
                   <Label className="text-foreground">Compact Mode</Label>
-                  <p className="text-xs text-muted-foreground">Use compact spacing</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Use smaller spacing</p>
                 </div>
                 <Switch />
               </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-foreground">Show Keyboard Shortcuts</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Display shortcut hints</p>
+                </div>
+                <Switch defaultChecked />
+              </div>
             </div>
           </div>
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
     </div>
   );
 }
