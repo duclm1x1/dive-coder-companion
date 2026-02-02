@@ -25,6 +25,7 @@ import { SkillsBrowser } from "@/components/chat/SkillsBrowser";
 import { WorkspaceSwitcher } from "@/components/chat/WorkspaceSwitcher";
 import { InlineThinking } from "@/components/chat/InlineThinking";
 import { FileDropZone } from "@/components/chat/FileDropZone";
+import { ChatHistorySidebar } from "@/components/chat/ChatHistorySidebar";
 import { SLASH_COMMANDS, DIVE_CODER_VERSION } from "@/lib/dive-coder-config";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { exportToMarkdown, downloadExport, printToPDF } from "@/lib/exportChat";
@@ -95,22 +96,27 @@ export function ActivityView({ performance: initialPerformance, onSendCommand, o
   
   // Use context for persistent state
   const { 
-    state: chatState, 
+    messages,
+    conversationTitle,
+    activeConversation,
+    createConversation,
     setMessages, 
     setConversationTitle, 
     setSessionCost, 
     setLatencyHistory, 
     setSelectedModel, 
-    setLocalPerformance 
+    setLocalPerformance,
+    state: chatState,
   } = useChatContext();
   
-  const { messages, conversationTitle, sessionCost, latencyHistory, selectedModel, localPerformance } = chatState;
+  const { sessionCost, latencyHistory, selectedModel, localPerformance } = chatState;
   
   // Local ephemeral state (OK to reset)
   const [input, setInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentStep, setCurrentStep] = useState("");
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(false);
+  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
@@ -451,6 +457,11 @@ export function ActivityView({ performance: initialPerformance, onSendCommand, o
     e?.preventDefault();
     if ((!input.trim() && attachments.length === 0) || isProcessing) return;
 
+    // Auto-create conversation if none exists
+    if (!activeConversation) {
+      createConversation();
+    }
+
     const userMessage = input.trim();
     const currentAttachments = [...attachments];
     setInput("");
@@ -535,6 +546,12 @@ export function ActivityView({ performance: initialPerformance, onSendCommand, o
       disabled={isProcessing}
       className="flex flex-1 overflow-hidden"
     >
+      {/* Left Sidebar - Chat History */}
+      <ChatHistorySidebar 
+        collapsed={leftSidebarCollapsed}
+        onToggle={() => setLeftSidebarCollapsed(!leftSidebarCollapsed)}
+      />
+
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Conversation Title Bar */}
