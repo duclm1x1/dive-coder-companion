@@ -1,9 +1,11 @@
-import { Zap, CheckCircle, DollarSign, Sparkles, Clock, TrendingUp, Brain, Cpu, Shield, Command, Database, MessageSquare, Wifi, AlertCircle, Server } from "lucide-react";
+import { Zap, CheckCircle, DollarSign, Sparkles, Clock, Brain, Cpu, Shield, Command, Database, MessageSquare, AlertCircle, Server, Gauge, Activity, BarChart3, Trash2 } from "lucide-react";
 import { DIVE_CODER_VERSION, DIVE_CODER_EDITION, DIVE_STATS, DIVE_FEATURES } from "@/lib/dive-coder-config";
 import { cn } from "@/lib/utils";
 import { useActivityLog, ActivityEvent } from "@/hooks/useActivityLog";
+import { useMetricsHistory, AggregatedMetrics } from "@/hooks/useMetricsHistory";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MetricCard } from "@/components/dashboard/MetricCard";
 
 interface DashboardViewProps {
   isConnected: boolean;
@@ -46,7 +48,11 @@ const eventColors: Record<ActivityEvent["type"], string> = {
 
 export function DashboardView({ isConnected, stats }: DashboardViewProps) {
   const { events, clearEvents, getRecentEvents } = useActivityLog();
+  const { getAggregatedMetrics, clearMetrics, snapshots } = useMetricsHistory();
   const recentEvents = getRecentEvents(8);
+  
+  // Get aggregated metrics with history
+  const metrics: AggregatedMetrics = getAggregatedMetrics();
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -57,6 +63,11 @@ export function DashboardView({ isConnected, stats }: DashboardViewProps) {
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
     return date.toLocaleDateString();
+  };
+
+  const handleClearAll = () => {
+    clearEvents();
+    clearMetrics();
   };
 
   return (
@@ -107,7 +118,9 @@ export function DashboardView({ isConnected, stats }: DashboardViewProps) {
             {isConnected ? "Dive Coder is running" : "Waiting for Dive Coder"}
           </p>
           <p className="text-sm text-muted-foreground">
-            {isConnected ? "Live monitoring data is being collected" : "Start Dive Coder to see live monitoring data"}
+            {isConnected 
+              ? `${snapshots.length} metrics recorded • Live monitoring active` 
+              : "Start Dive Coder to see live monitoring data"}
           </p>
         </div>
         {isConnected && (
@@ -142,66 +155,77 @@ export function DashboardView({ isConnected, stats }: DashboardViewProps) {
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Total Runs */}
-        <div className="p-6 rounded-xl bg-card border border-border hover:border-primary/30 transition-colors">
-          <div className="flex items-start justify-between">
-            <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center">
-              <Zap className="w-6 h-6 text-foreground" />
-            </div>
-          </div>
-          <div className="mt-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">TOTAL RUNS</p>
-            <p className="text-4xl font-bold text-foreground mt-1">{stats.totalRuns}</p>
-            <p className="text-sm text-muted-foreground mt-1">All time</p>
-          </div>
+      {/* Stats Grid with History */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Performance Metrics</h2>
+          {snapshots.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={handleClearAll} className="text-muted-foreground h-7">
+              <Trash2 className="w-3 h-3 mr-1" />
+              Clear All
+            </Button>
+          )}
         </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Total Runs */}
+          <MetricCard
+            title="TOTAL RUNS"
+            value={metrics.totalRuns || stats.totalRuns}
+            subtitle={`${metrics.successfulRuns} successful`}
+            icon={Zap}
+            history={metrics.runsHistory}
+            color="primary"
+          />
 
-        {/* Success Rate */}
-        <div className="p-6 rounded-xl bg-card border border-border hover:border-primary/30 transition-colors">
-          <div className="flex items-start justify-between">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <CheckCircle className="w-6 h-6 text-primary" />
-            </div>
-            <div className="flex items-center gap-1 text-success text-sm font-medium">
-              <TrendingUp className="w-4 h-4" />
-              +12%
-            </div>
-          </div>
-          <div className="mt-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">SUCCESS RATE</p>
-            <p className="text-4xl font-bold text-foreground mt-1">{stats.successRate}%</p>
-            <p className="text-sm text-muted-foreground mt-1">{stats.completedRuns} completed</p>
-          </div>
-        </div>
+          {/* Success Rate */}
+          <MetricCard
+            title="SUCCESS RATE"
+            value={`${metrics.successRate}%`}
+            subtitle={`${metrics.successfulRuns} of ${metrics.totalRuns} runs`}
+            icon={CheckCircle}
+            history={metrics.runsHistory.map(p => ({ ...p, value: p.value > 0 ? 100 : 0 }))}
+            color="success"
+          />
 
-        {/* Total Cost */}
-        <div className="p-6 rounded-xl bg-card border border-border hover:border-primary/30 transition-colors">
-          <div className="flex items-start justify-between">
-            <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
-              <DollarSign className="w-6 h-6 text-success" />
-            </div>
-          </div>
-          <div className="mt-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">TOTAL COST</p>
-            <p className="text-4xl font-bold text-foreground mt-1">${stats.totalCost.toFixed(4)}</p>
-            <p className="text-sm text-muted-foreground mt-1">{stats.apiCalls} API calls</p>
-          </div>
-        </div>
+          {/* Total Cost */}
+          <MetricCard
+            title="TOTAL COST"
+            value={`$${(metrics.totalCost || stats.totalCost).toFixed(4)}`}
+            subtitle={`${metrics.totalInputTokens + metrics.totalOutputTokens} tokens used`}
+            icon={DollarSign}
+            history={metrics.costHistory}
+            color="success"
+          />
 
-        {/* Active Provider */}
-        <div className="p-6 rounded-xl bg-card border border-border hover:border-primary/30 transition-colors">
-          <div className="flex items-start justify-between">
-            <div className="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-secondary" />
-            </div>
-          </div>
-          <div className="mt-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">ACTIVE PROVIDER</p>
-            <p className="text-4xl font-bold text-foreground mt-1">{stats.activeProvider || "None"}</p>
-            <p className="text-sm text-muted-foreground mt-1">{isConnected ? "Running" : "Waiting..."}</p>
-          </div>
+          {/* Avg Latency */}
+          <MetricCard
+            title="AVG LATENCY"
+            value={`${metrics.avgLatency}ms`}
+            subtitle={`P50: ${metrics.p50Latency}ms • P95: ${metrics.p95Latency}ms`}
+            icon={Gauge}
+            history={metrics.latencyHistory}
+            color="warning"
+          />
+
+          {/* Tokens Used */}
+          <MetricCard
+            title="TOKENS USED"
+            value={metrics.totalInputTokens + metrics.totalOutputTokens}
+            subtitle={`In: ${metrics.totalInputTokens} • Out: ${metrics.totalOutputTokens}`}
+            icon={Activity}
+            history={metrics.tokensHistory}
+            color="secondary"
+          />
+
+          {/* Active Provider */}
+          <MetricCard
+            title="ACTIVE PROVIDER"
+            value={stats.activeProvider || "None"}
+            subtitle={isConnected ? "Running" : "Waiting..."}
+            icon={BarChart3}
+            color="primary"
+          />
         </div>
       </div>
 
