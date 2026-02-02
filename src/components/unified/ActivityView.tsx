@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { 
   Send, User, Bot, Square,
   Loader2, ChevronDown, Settings2, Command, Globe, Zap, Check,
-  Paperclip, Image, File, X, FileAudio, FileArchive
+  Paperclip, Image, File, X, FileAudio, FileArchive, Mic, MicOff, Download
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -20,7 +20,13 @@ import ReactMarkdown from "react-markdown";
 import { CodeBlock } from "@/components/chat/CodeBlock";
 import { WelcomeHero } from "@/components/chat/WelcomeHero";
 import { MonitorSidebar } from "@/components/chat/MonitorSidebar";
+import { ThinkingPanel } from "@/components/chat/ThinkingPanel";
+import { SkillsBrowser } from "@/components/chat/SkillsBrowser";
+import { WorkspaceSwitcher } from "@/components/chat/WorkspaceSwitcher";
 import { SLASH_COMMANDS, DIVE_CODER_VERSION } from "@/lib/dive-coder-config";
+import { useVoiceInput } from "@/hooks/useVoiceInput";
+import { exportToMarkdown, downloadExport, printToPDF } from "@/lib/exportChat";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AIModel {
   id: string;
@@ -59,6 +65,8 @@ interface Message {
   status?: "sending" | "thinking" | "generating" | "complete" | "error";
   thinkingSteps?: string[];
   attachments?: FileAttachment[];
+  thinking?: string;
+  thinkingDuration?: number;
 }
 
 interface ActivityViewProps {
@@ -90,9 +98,33 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
+  const [currentWorkspace, setCurrentWorkspace] = useState("default");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Voice input
+  const { isListening, isSupported: voiceSupported, toggleListening, transcript } = useVoiceInput({
+    onTranscript: (text) => setInput(prev => prev + text),
+  });
+
+  // Export chat
+  const handleExport = (format: "md" | "json" | "pdf") => {
+    const exportMessages = messages.map(m => ({
+      role: m.role,
+      content: m.content,
+      timestamp: m.timestamp,
+      thinking: m.thinking,
+    }));
+    
+    if (format === "pdf") {
+      printToPDF(exportMessages, { title: conversationTitle || "Dive Coder Chat", model: selectedModel.name });
+    } else {
+      const content = exportToMarkdown(exportMessages, { title: conversationTitle || "Dive Coder Chat", model: selectedModel.name });
+      downloadExport(content, `dive-chat-${Date.now()}`, format);
+    }
+    toast.success(`Chat exported as ${format.toUpperCase()}`);
+  };
 
   // Supported file types
   const SUPPORTED_TYPES = {
@@ -592,7 +624,7 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
 
               <div className="flex items-end">
                 {/* File Upload Button */}
-                <div className="p-2">
+                <div className="p-2 flex items-center gap-1">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -611,6 +643,44 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
                   >
                     <Paperclip className="w-4 h-4" />
                   </Button>
+                  
+                  {/* Voice Input */}
+                  {voiceSupported && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={toggleListening}
+                      className={cn(
+                        "rounded-full h-9 w-9",
+                        isListening ? "bg-red-500/10 text-red-500 hover:bg-red-500/20" : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                      )}
+                      disabled={isProcessing}
+                    >
+                      {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                    </Button>
+                  )}
+                  
+                  {/* Export */}
+                  {messages.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="rounded-full h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted"
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => handleExport("md")}>Export as Markdown</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleExport("json")}>Export as JSON</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleExport("pdf")}>Print to PDF</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
 
                 <Textarea
