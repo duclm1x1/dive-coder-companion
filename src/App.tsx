@@ -4,15 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/contexts/ThemeContext";
-import { AppLayout } from "@/components/layout/AppLayout";
-import Dashboard from "./pages/Dashboard";
-import ChatPage from "./pages/ChatPage";
-import Console from "./pages/Console";
-import Monitor from "./pages/Monitor";
-import Tasks from "./pages/Tasks";
-import CodeReview from "./pages/CodeReview";
-import Settings from "./pages/Settings";
-import NotFound from "./pages/NotFound";
+import UnifiedApp from "./pages/UnifiedApp";
 
 const queryClient = new QueryClient();
 
@@ -23,18 +15,9 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <AppLayout>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/chat" element={<ChatPage />} />
-              <Route path="/console" element={<Console />} />
-              <Route path="/monitor" element={<Monitor />} />
-              <Route path="/tasks" element={<Tasks />} />
-              <Route path="/review" element={<CodeReview />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AppLayout>
+          <Routes>
+            <Route path="/*" element={<UnifiedApp />} />
+          </Routes>
         </BrowserRouter>
       </TooltipProvider>
     </ThemeProvider>
