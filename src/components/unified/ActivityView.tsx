@@ -439,7 +439,7 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
         );
         return;
       }
-      if (e.key === "Tab" || (e.key === "Enter" && !e.metaKey && !e.ctrlKey)) {
+      if (e.key === "Tab" || e.key === "Enter") {
         e.preventDefault();
         const selectedCmd = filteredCommands[selectedCommandIndex];
         if (selectedCmd) {
@@ -454,7 +454,8 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
       }
     }
     
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+    // Enter to send, Shift+Enter for new line
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
@@ -599,7 +600,7 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
               </div>
             )}
             
-            <div className="relative bg-card rounded-2xl border border-border focus-within:border-primary/50 focus-within:shadow-glow transition-all">
+            <div className="relative bg-card rounded-2xl border-2 border-border/60 focus-within:border-primary focus-within:shadow-lg focus-within:shadow-primary/10 transition-all duration-200">
               {/* Attachments Preview */}
               {attachments.length > 0 && (
                 <div className="p-2 border-b border-border flex flex-wrap gap-2">
@@ -698,8 +699,9 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Send a message or type / for commands..."
-                  className="min-h-[56px] max-h-[200px] flex-1 resize-none bg-transparent border-0 focus-visible:ring-0 pr-24 py-4 text-sm"
+                  className="min-h-[52px] max-h-[200px] flex-1 resize-none bg-transparent border-0 focus-visible:ring-0 focus:ring-0 ring-0 outline-none pr-12 py-3.5 text-sm placeholder:text-muted-foreground/60"
                   disabled={isProcessing}
+                  rows={1}
                 />
                 
                 <div className="p-2 flex items-center gap-2">
@@ -732,8 +734,9 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
               {/* Hint bar */}
               <div className="px-3 py-1.5 border-t border-border/50 flex items-center justify-between text-[10px] text-muted-foreground">
                 <div className="flex items-center gap-3">
-                  <span><kbd className="px-1 rounded bg-muted">⌘/Ctrl</kbd> + <kbd className="px-1 rounded bg-muted">Enter</kbd> to send</span>
-                  <span><kbd className="px-1 rounded bg-muted">/</kbd> for commands</span>
+                  <span><kbd className="px-1 rounded bg-muted">Enter</kbd> to send</span>
+                  <span><kbd className="px-1 rounded bg-muted">Shift+Enter</kbd> new line</span>
+                  <span><kbd className="px-1 rounded bg-muted">/</kbd> commands</span>
                 </div>
                 <span className="text-muted-foreground/70">
                   Supports: images, audio, text, zip, rar
