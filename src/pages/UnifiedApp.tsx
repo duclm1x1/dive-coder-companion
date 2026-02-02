@@ -92,7 +92,7 @@ function UnifiedAppContent() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-background-secondary">
+    <div className="flex flex-col h-screen overflow-hidden bg-background-secondary">
       <UnifiedHeader
         isConnected={isConnected}
         isRunning={isRunning}
@@ -102,7 +102,7 @@ function UnifiedAppContent() {
       />
       <MainTabs activeTab={activeTab} onTabChange={setActiveTab} />
       
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 flex flex-col min-h-0">
         {activeTab === "dashboard" && (
           <DashboardView isConnected={isConnected} stats={sharedStats} />
         )}
