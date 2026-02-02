@@ -20,9 +20,6 @@ export default function UnifiedApp() {
     activeProvider: isConnected ? "OpenAI" : "",
   };
 
-  // Mock tasks
-  const tasks: { id: string; title: string; status: "pending" | "running" | "completed" | "failed" }[] = [];
-
   // Mock performance
   const performance = {
     totalTime: 0,
@@ -44,18 +41,15 @@ export default function UnifiedApp() {
   };
 
   const handleRefresh = () => {
-    // Refresh data
     console.log("Refreshing...");
   };
 
   const handleExport = () => {
-    // Export data
     console.log("Exporting...");
   };
 
   const handleSendCommand = (command: string) => {
     console.log("Command:", command);
-    // Handle command
   };
 
   return (
@@ -75,7 +69,6 @@ export default function UnifiedApp() {
         )}
         {activeTab === "activity" && (
           <ActivityView
-            tasks={tasks}
             performance={performance}
             onSendCommand={handleSendCommand}
           />
