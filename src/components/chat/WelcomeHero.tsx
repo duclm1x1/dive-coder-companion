@@ -1,4 +1,4 @@
-import { Brain, Code, TestTube, Sparkles, AlertTriangle, MessageSquare, Command } from "lucide-react";
+import { Brain, Code, TestTube, Sparkles, AlertTriangle, MessageSquare, Command, Globe, Check, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { 
   DIVE_CODER_VERSION, 
@@ -43,6 +43,17 @@ export function WelcomeHero({ onSelectPrompt }: WelcomeHeroProps) {
       <p className="text-sm text-muted-foreground mb-1">
         {DIVE_CODER_EDITION} • {DIVE_CODER_STATUS}
       </p>
+      
+      {/* AICoding.dev Connection Status */}
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 mb-4">
+        <Globe className="w-4 h-4 text-cyan-400" />
+        <span className="text-sm font-bold text-cyan-400">AICoding.dev</span>
+        <span className="text-muted-foreground">•</span>
+        <span className="flex items-center gap-1 text-xs text-emerald-400">
+          <Wifi className="w-3 h-3" />
+          Connected
+        </span>
+      </div>
       
       {/* Stats Badge */}
       <div className="flex items-center gap-3 mb-6">
