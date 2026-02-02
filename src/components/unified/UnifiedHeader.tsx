@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { useLocalWorkspaces, Workspace } from "@/hooks/useLocalWorkspaces";
 import { cn } from "@/lib/utils";
 import { DIVE_CODER_VERSION } from "@/lib/dive-coder-config";
+import { UserHeader } from "@/components/layout/UserHeader";
 
 interface UnifiedHeaderProps {
   isConnected: boolean;
@@ -200,6 +201,11 @@ export function UnifiedHeader({
             >
               <LayoutGrid className="w-4 h-4" />
             </Button>
+          </div>
+
+          {/* User Menu */}
+          <div className="border-l border-border pl-3">
+            <UserHeader />
           </div>
         </div>
       </header>

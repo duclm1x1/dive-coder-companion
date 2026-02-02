@@ -27,6 +27,7 @@ import { SLASH_COMMANDS, DIVE_CODER_VERSION } from "@/lib/dive-coder-config";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { exportToMarkdown, downloadExport, printToPDF } from "@/lib/exportChat";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AIModel {
   id: string;
@@ -85,6 +86,7 @@ interface ActivityViewProps {
 }
 
 export function ActivityView({ performance, onSendCommand }: ActivityViewProps) {
+  const { session } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -107,6 +109,11 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
   const { isListening, isSupported: voiceSupported, toggleListening, transcript } = useVoiceInput({
     onTranscript: (text) => setInput(prev => prev + text),
   });
+
+  // Get auth token for API calls
+  const getAuthToken = useCallback(() => {
+    return session?.access_token || "";
+  }, [session]);
 
   // Export chat
   const handleExport = (format: "md" | "json" | "pdf") => {
@@ -296,11 +303,16 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
         .filter(m => m.status === "complete")
         .map(m => ({ role: m.role, content: m.content }));
 
+      const authToken = getAuthToken();
+      if (!authToken) {
+        throw new Error("Not authenticated. Please sign in again.");
+      }
+
       const response = await fetch(CHAT_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          "Authorization": `Bearer ${authToken}`,
         },
         body: JSON.stringify({
           messages: [...conversationHistory, { role: "user", content: userMessage }],
