@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { 
-  Brain, Clock, ChevronLeft, ChevronRight, 
-  Send, Wrench, Sparkles, FileText, User, Bot,
-  Loader2, CheckCircle, ChevronDown, Settings2,
-  Database, Grid3X3, Circle, Cpu
+  Brain, ChevronLeft, ChevronRight, 
+  Send, User, Bot, Clock, Wrench, Sparkles,
+  Loader2, CheckCircle, ChevronDown, Settings2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -38,13 +37,6 @@ const aiModels: AIModel[] = [
   { id: "claude-opus", name: "Claude Opus 4", provider: "Anthropic", badge: "pro", color: "bg-orange-600" },
 ];
 
-interface FeatureToggle {
-  id: string;
-  label: string;
-  icon: React.ReactNode;
-  enabled: boolean;
-}
-
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -76,28 +68,8 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
   const [currentStep, setCurrentStep] = useState("");
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(false);
   const [selectedModel, setSelectedModel] = useState<AIModel>(aiModels[0]);
-  const [features, setFeatures] = useState<FeatureToggle[]>([
-    { id: "rag", label: "RAG", icon: <Database className="w-3.5 h-3.5" />, enabled: false },
-    { id: "cpcg", label: "CPCG", icon: <Grid3X3 className="w-3.5 h-3.5" />, enabled: false },
-    { id: "shc", label: "SHC", icon: <Circle className="w-3.5 h-3.5" />, enabled: false },
-    { id: "dual-think", label: "Dual Think", icon: <Cpu className="w-3.5 h-3.5" />, enabled: true },
-  ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const toggleFeature = (id: string) => {
-    setFeatures(prev => 
-      prev.map(f => f.id === id ? { ...f, enabled: !f.enabled } : f)
-    );
-  };
 
   // Group models by provider
   const modelsByProvider = aiModels.reduce((acc, model) => {
@@ -318,26 +290,6 @@ Is there anything specific you'd like me to focus on?`;
             </Button>
           </div>
 
-          {/* Right - Feature Toggles */}
-          <div className="flex items-center gap-2">
-            {features.map((feature) => (
-              <Button
-                key={feature.id}
-                variant="outline"
-                size="sm"
-                onClick={() => toggleFeature(feature.id)}
-                className={cn(
-                  "gap-1.5 text-xs font-medium transition-all h-8",
-                  feature.enabled
-                    ? "border-primary bg-primary/10 text-primary hover:bg-primary/20"
-                    : "border-border text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {feature.icon}
-                {feature.label}
-              </Button>
-            ))}
-          </div>
         </div>
 
         {/* Input Area */}
