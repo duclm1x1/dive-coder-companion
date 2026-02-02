@@ -126,17 +126,11 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
     }
   }, [abortController]);
 
-  // Simulate AI response with thinking steps
-  const simulateAIResponse = async (userMessage: string, signal: AbortSignal) => {
+  // Real AI response with streaming
+  const streamAIResponse = async (userMessage: string, signal: AbortSignal) => {
     const startTime = Date.now();
-    const steps = [
-      "Understanding your request...",
-      "Analyzing context...",
-      `Using ${selectedModel.name}...`,
-      "Processing with AI...",
-      "Generating response...",
-    ];
-
+    const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+    
     const assistantId = `msg-${Date.now()}`;
     setMessages(prev => [...prev, {
       id: assistantId,
@@ -152,12 +146,19 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
       setConversationTitle(userMessage.slice(0, 50) + (userMessage.length > 50 ? "..." : ""));
     }
 
+    // Show thinking steps
+    const steps = [
+      "Understanding your request...",
+      `Connecting to ${selectedModel.name}...`,
+      "Processing with AI...",
+    ];
+
     try {
       for (const step of steps) {
         if (signal.aborted) return;
         setCurrentStep(step);
         await new Promise((r, reject) => {
-          const timeout = setTimeout(r, 300 + Math.random() * 300);
+          const timeout = setTimeout(r, 200);
           signal.addEventListener('abort', () => {
             clearTimeout(timeout);
             reject(new DOMException('Aborted', 'AbortError'));
@@ -177,50 +178,94 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
         m.id === assistantId ? { ...m, status: "generating" } : m
       ));
 
-      const response = `I understand you want to: **${userMessage}**
+      // Build conversation history
+      const conversationHistory = messages
+        .filter(m => m.status === "complete")
+        .map(m => ({ role: m.role, content: m.content }));
 
-Using **${selectedModel.name}** (${selectedModel.provider}), here's an example:
+      const response = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          messages: [...conversationHistory, { role: "user", content: userMessage }],
+          model: selectedModel.id,
+        }),
+        signal,
+      });
 
-\`\`\`typescript
-// Example code snippet
-function processRequest(input: string): Promise<Result> {
-  const processed = analyzeInput(input);
-  return generateOutput(processed);
-}
+      if (!response.ok || !response.body) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Request failed: ${response.status}`);
+      }
 
-// Usage
-const result = await processRequest("${userMessage.slice(0, 20)}...");
-console.log(result);
-\`\`\`
+      // Stream the response
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let textBuffer = "";
+      let assistantContent = "";
 
-**Key points:**
-1. First, I'll analyze your request
-2. Then I'll process the relevant information
-3. Finally, I'll provide a comprehensive response
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        textBuffer += decoder.decode(value, { stream: true });
 
-Is there anything specific you'd like me to focus on?`;
+        let newlineIndex: number;
+        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+          let line = textBuffer.slice(0, newlineIndex);
+          textBuffer = textBuffer.slice(newlineIndex + 1);
 
-      let currentContent = "";
-      for (const char of response) {
-        if (signal.aborted) return;
-        currentContent += char;
-        setMessages(prev => prev.map(m => 
-          m.id === assistantId ? { ...m, content: currentContent } : m
-        ));
-        await new Promise(r => setTimeout(r, 8));
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (line.startsWith(":") || line.trim() === "") continue;
+          if (!line.startsWith("data: ")) continue;
+
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") break;
+
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+            if (content) {
+              assistantContent += content;
+              setMessages(prev => prev.map(m => 
+                m.id === assistantId ? { ...m, content: assistantContent } : m
+              ));
+            }
+          } catch {
+            // Incomplete JSON, put it back
+            textBuffer = line + "\n" + textBuffer;
+            break;
+          }
+        }
       }
 
       const endTime = Date.now();
       const latency = endTime - startTime;
       setLatencyHistory(prev => [...prev.slice(-19), latency]);
-      setSessionCost(prev => prev + 0.002); // Simulated cost
+      
+      // Calculate approximate cost based on response length
+      const tokenEstimate = Math.ceil(assistantContent.length / 4);
+      const costEstimate = tokenEstimate * 0.000001; // Rough estimate
+      setSessionCost(prev => prev + costEstimate);
 
       setMessages(prev => prev.map(m => 
         m.id === assistantId ? { ...m, status: "complete" } : m
       ));
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
-      throw e;
+      
+      console.error("AI response error:", e);
+      const errorMessage = e instanceof Error ? e.message : "Failed to get AI response";
+      
+      // Show error in the message
+      setMessages(prev => prev.map(m => 
+        m.id === assistantId 
+          ? { ...m, content: `⚠️ Error: ${errorMessage}`, status: "error" as const }
+          : m
+      ));
     } finally {
       setCurrentStep("");
       setIsProcessing(false);
@@ -249,7 +294,7 @@ Is there anything specific you'd like me to focus on?`;
     setMessages(prev => [...prev, userMsg]);
     onSendCommand(userMessage);
     
-    await simulateAIResponse(userMessage, controller.signal);
+    await streamAIResponse(userMessage, controller.signal);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
