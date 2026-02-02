@@ -1,4 +1,6 @@
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface FileAttachment {
   id: string;
@@ -54,31 +56,29 @@ interface ChatState {
     p50Latency: number;
     p95Latency: number;
   };
+  isLoadingFromDb: boolean;
 }
 
 interface ChatContextType {
   state: ChatState;
-  // Current conversation helpers
   activeConversation: Conversation | null;
   messages: Message[];
   conversationTitle: string;
-  // Conversation management
   createConversation: () => Conversation;
   selectConversation: (id: string) => void;
   deleteConversation: (id: string) => void;
   renameConversation: (id: string, title: string) => void;
-  // Message management
   setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void;
   setConversationTitle: (title: string) => void;
-  // State management
   setSessionCost: (cost: number | ((prev: number) => number)) => void;
   setLatencyHistory: (history: number[] | ((prev: number[]) => number[])) => void;
   setSelectedModel: (model: AIModel) => void;
   setLocalPerformance: (perf: Partial<ChatState["localPerformance"]> | ((prev: ChatState["localPerformance"]) => ChatState["localPerformance"])) => void;
   clearChat: () => void;
+  refreshFromDatabase: () => Promise<void>;
 }
 
-const STORAGE_KEY = "dive-coder-conversations";
+const ACTIVE_CONV_KEY = "dive-coder-active-conversation";
 
 const defaultModel: AIModel = { 
   id: "gemini-3-flash", 
@@ -107,69 +107,242 @@ const defaultState: ChatState = {
   latencyHistory: [],
   selectedModel: defaultModel,
   localPerformance: defaultPerformance,
+  isLoadingFromDb: true,
 };
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
-// Serialize conversations for storage (convert Date to string)
-function serializeConversations(conversations: Conversation[]): string {
-  return JSON.stringify(conversations.map(conv => ({
-    ...conv,
-    createdAt: conv.createdAt.toISOString(),
-    updatedAt: conv.updatedAt.toISOString(),
-    messages: conv.messages.map(msg => ({
-      ...msg,
-      timestamp: msg.timestamp instanceof Date ? msg.timestamp.toISOString() : msg.timestamp,
-      attachments: msg.attachments?.map(att => ({ ...att, file: undefined })),
-    })),
-  })));
-}
-
-// Deserialize conversations from storage (convert string to Date)
-function deserializeConversations(data: string): Conversation[] {
-  try {
-    const parsed = JSON.parse(data);
-    return parsed.map((conv: any) => ({
-      ...conv,
-      createdAt: new Date(conv.createdAt),
-      updatedAt: new Date(conv.updatedAt),
-      messages: conv.messages.map((msg: any) => ({
-        ...msg,
-        timestamp: new Date(msg.timestamp),
-      })),
-    }));
-  } catch {
-    return [];
-  }
+// Convert DB message to local format
+function dbToLocalMessage(msg: {
+  id: string;
+  role: string;
+  content: string;
+  created_at: string;
+  thinking: string | null;
+  thinking_duration: number | null;
+  attachments: unknown;
+}): Message {
+  const attachments = Array.isArray(msg.attachments) ? msg.attachments : undefined;
+  return {
+    id: msg.id,
+    role: msg.role as "user" | "assistant",
+    content: msg.content,
+    timestamp: new Date(msg.created_at),
+    status: "complete",
+    thinking: msg.thinking ?? undefined,
+    thinkingDuration: msg.thinking_duration ?? undefined,
+    attachments: attachments as FileAttachment[] | undefined,
+  };
 }
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<ChatState>(() => {
-    // Load from localStorage on init
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const conversations = deserializeConversations(stored);
-      const lastActiveId = localStorage.getItem(`${STORAGE_KEY}-active`);
-      return {
-        ...defaultState,
-        conversations,
-        activeConversationId: lastActiveId && conversations.find(c => c.id === lastActiveId) 
-          ? lastActiveId 
-          : conversations[0]?.id || null,
-      };
-    }
-    return defaultState;
-  });
+  const { user } = useAuth();
+  const [state, setState] = useState<ChatState>(defaultState);
+  const isInitialLoad = useRef(true);
+  const saveTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Save to localStorage whenever conversations change
+  // Load conversations from database
+  const loadFromDatabase = useCallback(async () => {
+    if (!user) {
+      setState(prev => ({ ...prev, isLoadingFromDb: false, conversations: [], activeConversationId: null }));
+      return;
+    }
+
+    try {
+      // Fetch conversations
+      const { data: convData, error: convError } = await supabase
+        .from("conversations")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_archived", false)
+        .order("updated_at", { ascending: false });
+
+      if (convError) {
+        console.error("Failed to load conversations:", convError);
+        setState(prev => ({ ...prev, isLoadingFromDb: false }));
+        return;
+      }
+
+      if (!convData || convData.length === 0) {
+        setState(prev => ({ 
+          ...prev, 
+          isLoadingFromDb: false, 
+          conversations: [], 
+          activeConversationId: null 
+        }));
+        isInitialLoad.current = false;
+        return;
+      }
+
+      // Fetch all messages
+      const convIds = convData.map(c => c.id);
+      const { data: msgData, error: msgError } = await supabase
+        .from("messages")
+        .select("*")
+        .in("conversation_id", convIds)
+        .order("created_at", { ascending: true });
+
+      if (msgError) {
+        console.error("Failed to load messages:", msgError);
+      }
+
+      // Group messages by conversation
+      const messagesByConv = (msgData || []).reduce((acc, msg) => {
+        if (!acc[msg.conversation_id]) acc[msg.conversation_id] = [];
+        acc[msg.conversation_id].push(msg);
+        return acc;
+      }, {} as Record<string, typeof msgData>);
+
+      // Convert to local format
+      const conversations: Conversation[] = convData.map(conv => ({
+        id: conv.id,
+        title: conv.title,
+        model: conv.model,
+        createdAt: new Date(conv.created_at),
+        updatedAt: new Date(conv.updated_at),
+        messages: (messagesByConv[conv.id] || []).map(dbToLocalMessage),
+      }));
+
+      // Restore active conversation
+      const storedActiveId = localStorage.getItem(ACTIVE_CONV_KEY);
+      const validActiveId = storedActiveId && conversations.find(c => c.id === storedActiveId)
+        ? storedActiveId
+        : conversations[0]?.id || null;
+
+      setState(prev => ({
+        ...prev,
+        conversations,
+        activeConversationId: validActiveId,
+        isLoadingFromDb: false,
+      }));
+      
+      isInitialLoad.current = false;
+    } catch (error) {
+      console.error("Database load error:", error);
+      setState(prev => ({ ...prev, isLoadingFromDb: false }));
+      isInitialLoad.current = false;
+    }
+  }, [user]);
+
+  // Save conversation to database (debounced)
+  const saveConversationToDb = useCallback(async (conversation: Conversation) => {
+    if (!user) return;
+
+    try {
+      // Upsert conversation
+      const { error: convError } = await supabase
+        .from("conversations")
+        .upsert({
+          id: conversation.id,
+          user_id: user.id,
+          title: conversation.title,
+          model: conversation.model,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "id" });
+
+      if (convError) {
+        console.error("Failed to save conversation:", convError);
+        return;
+      }
+
+      // Get existing message IDs
+      const { data: existingMsgs } = await supabase
+        .from("messages")
+        .select("id")
+        .eq("conversation_id", conversation.id);
+
+      const existingIds = new Set((existingMsgs || []).map(m => m.id));
+
+      // Only insert new complete messages
+      const newMessages = conversation.messages
+        .filter(m => m.status === "complete" && !existingIds.has(m.id))
+        .map(m => ({
+          id: m.id,
+          conversation_id: conversation.id,
+          role: m.role,
+          content: m.content,
+          thinking: m.thinking || null,
+          thinking_duration: m.thinkingDuration || null,
+          attachments: m.attachments 
+            ? m.attachments.map(a => ({ id: a.id, name: a.name, type: a.type, size: a.size }))
+            : null,
+        }));
+
+      if (newMessages.length > 0) {
+        const { error: msgError } = await supabase
+          .from("messages")
+          .insert(newMessages);
+
+        if (msgError) {
+          console.error("Failed to save messages:", msgError);
+        }
+      }
+    } catch (error) {
+      console.error("Save error:", error);
+    }
+  }, [user]);
+
+  // Delete conversation from database
+  const deleteFromDb = useCallback(async (conversationId: string) => {
+    if (!user) return;
+
+    try {
+      // Delete messages first
+      await supabase
+        .from("messages")
+        .delete()
+        .eq("conversation_id", conversationId);
+
+      // Delete conversation
+      const { error } = await supabase
+        .from("conversations")
+        .delete()
+        .eq("id", conversationId)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("Failed to delete conversation:", error);
+      }
+    } catch (error) {
+      console.error("Delete error:", error);
+    }
+  }, [user]);
+
+  // Load on auth change
   useEffect(() => {
-    if (state.conversations.length > 0) {
-      localStorage.setItem(STORAGE_KEY, serializeConversations(state.conversations));
-    }
+    loadFromDatabase();
+  }, [user, loadFromDatabase]);
+
+  // Save active conversation ID to localStorage
+  useEffect(() => {
     if (state.activeConversationId) {
-      localStorage.setItem(`${STORAGE_KEY}-active`, state.activeConversationId);
+      localStorage.setItem(ACTIVE_CONV_KEY, state.activeConversationId);
     }
-  }, [state.conversations, state.activeConversationId]);
+  }, [state.activeConversationId]);
+
+  // Auto-save active conversation (debounced)
+  useEffect(() => {
+    if (isInitialLoad.current || !user) return;
+
+    const activeConv = state.conversations.find(c => c.id === state.activeConversationId);
+    if (!activeConv) return;
+
+    // Clear previous timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Debounce save
+    saveTimeoutRef.current = setTimeout(() => {
+      saveConversationToDb(activeConv);
+    }, 1500);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [state.conversations, state.activeConversationId, user, saveConversationToDb]);
 
   // Get active conversation
   const activeConversation = state.conversations.find(c => c.id === state.activeConversationId) || null;
@@ -179,7 +352,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Create new conversation
   const createConversation = useCallback(() => {
     const newConv: Conversation = {
-      id: `conv-${Date.now()}`,
+      id: crypto.randomUUID(),
       title: "New Chat",
       messages: [],
       createdAt: new Date(),
@@ -192,9 +365,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       conversations: [newConv, ...prev.conversations],
       activeConversationId: newConv.id,
     }));
+
+    // Save immediately
+    if (user) {
+      saveConversationToDb(newConv);
+    }
     
     return newConv;
-  }, [state.selectedModel.id]);
+  }, [state.selectedModel.id, user, saveConversationToDb]);
 
   // Select conversation
   const selectConversation = useCallback((id: string) => {
@@ -212,17 +390,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         ? (filtered[0]?.id || null)
         : prev.activeConversationId;
       
-      if (filtered.length === 0) {
-        localStorage.removeItem(STORAGE_KEY);
-      }
-      
       return {
         ...prev,
         conversations: filtered,
         activeConversationId: newActiveId,
       };
     });
-  }, []);
+
+    // Delete from DB
+    deleteFromDb(id);
+  }, [deleteFromDb]);
 
   // Rename conversation
   const renameConversation = useCallback((id: string, title: string) => {
@@ -319,6 +496,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const refreshFromDatabase = useCallback(async () => {
+    isInitialLoad.current = true;
+    await loadFromDatabase();
+  }, [loadFromDatabase]);
+
   return (
     <ChatContext.Provider value={{
       state,
@@ -336,6 +518,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setSelectedModel,
       setLocalPerformance,
       clearChat,
+      refreshFromDatabase,
     }}>
       {children}
     </ChatContext.Provider>
