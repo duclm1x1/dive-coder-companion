@@ -1,19 +1,20 @@
 import { useState } from "react";
-import { Save, RotateCcw, Key, Bell, Monitor, Palette, Database, Shield, Zap } from "lucide-react";
+import { Save, RotateCcw, Key, Bell, Monitor, Palette, Database, Shield, Zap, Server } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { SkinSelector } from "@/components/SkinSelector";
+import { APIProviderManager } from "@/components/settings/APIProviderManager";
 
-type SettingsTab = "general" | "api" | "notifications" | "appearance";
+type SettingsTab = "general" | "providers" | "notifications" | "appearance";
 
 export function SettingsView() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 
   const tabs = [
     { id: "general" as SettingsTab, label: "General", icon: Monitor },
-    { id: "api" as SettingsTab, label: "API Keys", icon: Key },
+    { id: "providers" as SettingsTab, label: "API Providers", icon: Server },
     { id: "notifications" as SettingsTab, label: "Notifications", icon: Bell },
     { id: "appearance" as SettingsTab, label: "Appearance", icon: Palette },
   ];
@@ -134,79 +135,10 @@ export function SettingsView() {
           </>
         )}
 
-        {activeTab === "api" && (
-          <>
-            <div className="p-5 rounded-xl bg-card border border-border space-y-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center">
-                  <Key className="w-5 h-5 text-emerald-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">API Configuration</h3>
-                  <p className="text-sm text-muted-foreground">Configure your AI provider keys</p>
-                </div>
-              </div>
-              
-              <div className="grid gap-4 pt-2">
-                <div className="grid gap-2">
-                  <Label className="text-foreground text-sm">OpenAI API Key</Label>
-                  <Input
-                    type="password"
-                    placeholder="sk-..."
-                    className="bg-muted border-border"
-                  />
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label className="text-foreground text-sm">Anthropic API Key</Label>
-                  <Input
-                    type="password"
-                    placeholder="sk-ant-..."
-                    className="bg-muted border-border"
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label className="text-foreground text-sm">Default Provider</Label>
-                  <select className="w-full p-2.5 rounded-md bg-muted border border-border text-sm text-foreground">
-                    <option value="openai">OpenAI</option>
-                    <option value="anthropic">Anthropic</option>
-                    <option value="local">Local Model</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-5 rounded-xl bg-card border border-border space-y-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center">
-                  <Shield className="w-5 h-5 text-amber-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">Security</h3>
-                  <p className="text-sm text-muted-foreground">API security settings</p>
-                </div>
-              </div>
-              
-              <div className="space-y-4 pt-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-foreground">Encrypt API Keys</Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">Store keys with encryption</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-foreground">Rate Limiting</Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">Limit API calls per minute</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-              </div>
-            </div>
-          </>
+        {activeTab === "providers" && (
+          <div className="p-5 rounded-xl bg-card border border-border">
+            <APIProviderManager />
+          </div>
         )}
 
         {activeTab === "notifications" && (
