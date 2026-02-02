@@ -33,6 +33,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChatContext } from "@/contexts/ChatContext";
 import { backendApi, extractUrls } from "@/lib/api/backend";
+import { useMetricsHistory } from "@/hooks/useMetricsHistory";
 
 interface AIModel {
   id: string;
@@ -111,6 +112,9 @@ export function ActivityView({ performance: initialPerformance, onSendCommand, o
   } = useChatContext();
   
   const { sessionCost, latencyHistory, selectedModel, localPerformance } = chatState;
+  
+  // Metrics history for persistence
+  const { recordMetric } = useMetricsHistory();
   
   // Local ephemeral state (OK to reset)
   const [input, setInput] = useState("");
@@ -434,6 +438,18 @@ export function ActivityView({ performance: initialPerformance, onSendCommand, o
       const inputTokenEstimate = Math.ceil(userMessage.length / 4);
       const outputTokenEstimate = Math.ceil(assistantContent.length / 4);
       const costEstimate = (inputTokenEstimate + outputTokenEstimate) * 0.000002;
+      
+      // Record metric to history for persistence
+      recordMetric({
+        latency,
+        inputTokens: inputTokenEstimate,
+        outputTokens: outputTokenEstimate,
+        cost: costEstimate,
+        provider: selectedModel.provider,
+        model: selectedModel.id,
+        success: true,
+      });
+      
       setSessionCost(prev => {
         const newCost = prev + costEstimate;
         // Sync to parent
@@ -466,6 +482,17 @@ export function ActivityView({ performance: initialPerformance, onSendCommand, o
       
       console.error("AI response error:", e);
       const errorMessage = e instanceof Error ? e.message : "Failed to get AI response";
+      
+      // Record failed metric
+      recordMetric({
+        latency: Date.now() - startTime,
+        inputTokens: Math.ceil(userMessage.length / 4),
+        outputTokens: 0,
+        cost: 0,
+        provider: selectedModel.provider,
+        model: selectedModel.id,
+        success: false,
+      });
       
       // Show error in the message
       setMessages(prev => prev.map(m => 
