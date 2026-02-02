@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { 
   Wifi, WifiOff, Play, Square, RefreshCw, 
-  LayoutGrid, ChevronDown, Folder, Plus, Trash2, FolderOpen, HardDrive, Brain
+  LayoutGrid, ChevronDown, Folder, Plus, Trash2, FolderOpen, HardDrive, Brain,
+  Upload, Download, Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,10 +22,11 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { useLocalWorkspaces, Workspace } from "@/hooks/useLocalWorkspaces";
+import { useLocalWorkspaces, isFileSystemAccessSupported, Workspace } from "@/hooks/useLocalWorkspaces";
 import { cn } from "@/lib/utils";
 import { DIVE_CODER_VERSION } from "@/lib/dive-coder-config";
 import { UserHeader } from "@/components/layout/UserHeader";
+import { toast } from "sonner";
 
 interface UnifiedHeaderProps {
   isConnected: boolean;
@@ -47,27 +49,100 @@ export function UnifiedHeader({
     selectWorkspace,
     addWorkspace,
     deleteWorkspace,
+    exportWorkspaceData,
+    importWorkspaceData,
+    isFileSystemSupported,
   } = useLocalWorkspaces();
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [newWorkspacePath, setNewWorkspacePath] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
-  const handleAddWorkspace = () => {
-    if (newWorkspaceName.trim()) {
-      const ws = addWorkspace(newWorkspaceName, newWorkspacePath);
-      selectWorkspace(ws);
-      setNewWorkspaceName("");
-      setNewWorkspacePath("");
-      setShowAddDialog(false);
+  const handleBrowseFolder = async () => {
+    if (!isFileSystemSupported) {
+      toast.error("Your browser doesn't support folder selection. Use Chrome or Edge.");
+      return;
+    }
+
+    try {
+      const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      setNewWorkspacePath(handle.name);
+      if (!newWorkspaceName.trim()) {
+        setNewWorkspaceName(handle.name);
+      }
+    } catch (error: any) {
+      if (error.name !== 'AbortError') {
+        toast.error("Failed to select folder");
+      }
+    }
+  };
+
+  const handleAddWorkspace = async () => {
+    if (!newWorkspaceName.trim()) {
+      toast.error("Please enter a workspace name");
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const ws = await addWorkspace(newWorkspaceName, newWorkspacePath || undefined, false);
+      if (ws) {
+        selectWorkspace(ws);
+        setNewWorkspaceName("");
+        setNewWorkspacePath("");
+        setShowAddDialog(false);
+      }
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleAddWithFolderPicker = async () => {
+    if (!isFileSystemSupported) {
+      toast.error("Your browser doesn't support folder selection. Use Chrome or Edge.");
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const ws = await addWorkspace(newWorkspaceName || "", undefined, true);
+      if (ws) {
+        selectWorkspace(ws);
+        setNewWorkspaceName("");
+        setNewWorkspacePath("");
+        setShowAddDialog(false);
+      }
+    } finally {
+      setIsCreating(false);
     }
   };
 
   const handleDeleteWorkspace = (e: React.MouseEvent, ws: Workspace) => {
     e.stopPropagation();
     if (workspaces.length > 1) {
-      deleteWorkspace(ws.id);
+      if (window.confirm(`Delete workspace "${ws.name}"?`)) {
+        deleteWorkspace(ws.id);
+      }
     }
+  };
+
+  const handleExport = (e: React.MouseEvent, ws: Workspace) => {
+    e.stopPropagation();
+    exportWorkspaceData(ws.id);
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const workspace = await importWorkspaceData(file);
+    if (workspace) {
+      selectWorkspace(workspace);
+    }
+    
+    if (importInputRef.current) importInputRef.current.value = '';
   };
 
   return (
@@ -102,7 +177,7 @@ export function UnifiedHeader({
                 <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="center" className="w-64">
+            <DropdownMenuContent align="center" className="w-72">
               <DropdownMenuLabel className="flex items-center gap-2 text-xs text-muted-foreground">
                 <HardDrive className="w-3 h-3" />
                 Local Workspaces
@@ -123,28 +198,54 @@ export function UnifiedHeader({
                     <div className="flex flex-col min-w-0">
                       <span className="truncate">{ws.name}</span>
                       {ws.path && (
-                        <span className="text-[10px] text-muted-foreground truncate">{ws.path}</span>
+                        <span className="text-[10px] text-muted-foreground truncate">
+                          {ws.isLocal ? "📁 " : ""}{ws.path}
+                        </span>
                       )}
                     </div>
                   </div>
-                  {workspaces.length > 1 && (
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
-                      onClick={(e) => handleDeleteWorkspace(e, ws)}
+                      className="h-6 w-6 hover:bg-muted"
+                      onClick={(e) => handleExport(e, ws)}
+                      title="Export"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Download className="w-3 h-3" />
                     </Button>
-                  )}
+                    {workspaces.length > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 hover:bg-destructive/10 hover:text-destructive"
+                        onClick={(e) => handleDeleteWorkspace(e, ws)}
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </div>
                 </DropdownMenuItem>
               ))}
 
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setShowAddDialog(true)} className="text-primary">
                 <Plus className="w-4 h-4 mr-2" />
-                Add Workspace
+                Add Local Workspace
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => importInputRef.current?.click()}>
+                <Upload className="w-4 h-4 mr-2" />
+                Import Workspace
+              </DropdownMenuItem>
+              
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleImport}
+                className="hidden"
+              />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -211,7 +312,13 @@ export function UnifiedHeader({
       </header>
 
       {/* Add Workspace Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+      <Dialog open={showAddDialog} onOpenChange={(open) => {
+        setShowAddDialog(open);
+        if (!open) {
+          setNewWorkspaceName("");
+          setNewWorkspacePath("");
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -232,24 +339,65 @@ export function UnifiedHeader({
             </div>
             <div className="space-y-2">
               <Label htmlFor="workspace-path">Local Path (optional)</Label>
-              <Input
-                id="workspace-path"
-                value={newWorkspacePath}
-                onChange={(e) => setNewWorkspacePath(e.target.value)}
-                placeholder="/home/user/projects/my-project"
-                className="bg-muted"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="workspace-path"
+                  value={newWorkspacePath}
+                  onChange={(e) => setNewWorkspacePath(e.target.value)}
+                  placeholder="/home/user/projects/my-project"
+                  className="flex-1 bg-primary/5 border-primary/20"
+                />
+                {isFileSystemSupported && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleBrowseFolder}
+                    title="Browse folder"
+                    disabled={isCreating}
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">
                 The local directory path for this workspace
               </p>
             </div>
+
+            {isFileSystemSupported && (
+              <div className="pt-2 border-t border-border">
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={handleAddWithFolderPicker}
+                  disabled={isCreating}
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  Pick Folder from PC
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  Select a folder directly from your hard drive
+                </p>
+              </div>
+            )}
+
+            {!isFileSystemSupported && (
+              <p className="text-xs text-amber-500 bg-amber-500/10 p-2 rounded">
+                ⚠️ Folder selection requires Chrome or Edge browser. You can still enter a path manually.
+              </p>
+            )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowAddDialog(false)} disabled={isCreating}>
               Cancel
             </Button>
-            <Button onClick={handleAddWorkspace} disabled={!newWorkspaceName.trim()}>
-              <Plus className="w-4 h-4 mr-2" />
+            <Button onClick={handleAddWorkspace} disabled={!newWorkspaceName.trim() || isCreating}>
+              {isCreating ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Plus className="w-4 h-4 mr-2" />
+              )}
               Add Workspace
             </Button>
           </DialogFooter>
