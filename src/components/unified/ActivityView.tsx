@@ -571,7 +571,7 @@ export function ActivityView({ performance: initialPerformance, onSendCommand, o
     <FileDropZone 
       onFilesDropped={handleFilesDropped} 
       disabled={isProcessing}
-      className="flex flex-1 overflow-hidden"
+      className="flex flex-1 h-full min-h-0"
     >
       {/* Left Sidebar - Chat History */}
       <ChatHistorySidebar 
@@ -580,16 +580,16 @@ export function ActivityView({ performance: initialPerformance, onSendCommand, o
       />
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 min-w-0">
         {/* Conversation Title Bar */}
         {conversationTitle && (
-          <div className="px-4 py-2 border-b border-border bg-background/50">
+          <div className="flex-shrink-0 px-4 py-2 border-b border-border bg-background/50">
             <p className="text-sm font-medium text-foreground truncate max-w-xl">{conversationTitle}</p>
           </div>
         )}
 
         {/* Messages */}
-        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto scroll-smooth">
+        <div ref={messagesContainerRef} className="flex-1 min-h-0 overflow-y-auto scroll-smooth">
           {messages.length === 0 ? (
             <WelcomeHero onSelectPrompt={handleSelectPrompt} />
           ) : (
