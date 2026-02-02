@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { 
   Send, User, Bot, Square,
-  Loader2, ChevronDown, Settings2, Command, Globe, Zap, Check
+  Loader2, ChevronDown, Settings2, Command, Globe, Zap, Check,
+  Paperclip, Image, File, X, FileAudio, FileArchive
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,6 +42,15 @@ const aiModels: AIModel[] = [
   { id: "claude-opus", name: "Claude Opus 4", provider: "Anthropic", badge: "pro", color: "bg-orange-600" },
 ];
 
+interface FileAttachment {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  url?: string;
+  file: File;
+}
+
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -47,6 +58,7 @@ interface Message {
   timestamp: Date;
   status?: "sending" | "thinking" | "generating" | "complete" | "error";
   thinkingSteps?: string[];
+  attachments?: FileAttachment[];
 }
 
 interface ActivityViewProps {
@@ -77,8 +89,77 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+  const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Supported file types
+  const SUPPORTED_TYPES = {
+    image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+    audio: ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp3'],
+    archive: ['application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed'],
+    text: ['text/plain', 'text/markdown', 'application/json'],
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const maxSize = 20 * 1024 * 1024; // 20MB
+    const maxFiles = 10;
+
+    if (attachments.length + files.length > maxFiles) {
+      toast.error(`Maximum ${maxFiles} files allowed`);
+      return;
+    }
+
+    const newAttachments: FileAttachment[] = [];
+    
+    for (const file of files) {
+      if (file.size > maxSize) {
+        toast.error(`${file.name} exceeds 20MB limit`);
+        continue;
+      }
+
+      const attachment: FileAttachment = {
+        id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        file,
+      };
+
+      // Create preview URL for images
+      if (file.type.startsWith('image/')) {
+        attachment.url = URL.createObjectURL(file);
+      }
+
+      newAttachments.push(attachment);
+    }
+
+    setAttachments(prev => [...prev, ...newAttachments]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachments(prev => {
+      const toRemove = prev.find(a => a.id === id);
+      if (toRemove?.url) URL.revokeObjectURL(toRemove.url);
+      return prev.filter(a => a.id !== id);
+    });
+  };
+
+  const getFileIcon = (type: string) => {
+    if (type.startsWith('image/')) return <Image className="w-4 h-4" />;
+    if (type.startsWith('audio/')) return <FileAudio className="w-4 h-4" />;
+    if (type.includes('zip') || type.includes('rar') || type.includes('7z')) return <FileArchive className="w-4 h-4" />;
+    return <File className="w-4 h-4" />;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   // Filter commands based on input
   const filteredCommands = useMemo(() => {
@@ -275,10 +356,12 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!input.trim() || isProcessing) return;
+    if ((!input.trim() && attachments.length === 0) || isProcessing) return;
 
     const userMessage = input.trim();
+    const currentAttachments = [...attachments];
     setInput("");
+    setAttachments([]);
     setIsProcessing(true);
 
     const controller = new AbortController();
@@ -290,6 +373,7 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
       content: userMessage,
       timestamp: new Date(),
       status: "complete",
+      attachments: currentAttachments.length > 0 ? currentAttachments : undefined,
     };
     setMessages(prev => [...prev, userMsg]);
     onSendCommand(userMessage);
@@ -433,33 +517,6 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
           )}
         </div>
 
-        {/* AI Status Bar */}
-        <div className="px-4 py-2 border-t border-border flex items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-              <Globe className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="text-xs font-bold text-cyan-400">AICoding.dev</span>
-              <span className="text-muted-foreground">•</span>
-              <span className="flex items-center gap-1 text-xs text-emerald-400">
-                <Check className="w-3 h-3" />
-                Connected
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className={cn("w-2 h-2 rounded-full", selectedModel.color)} />
-              <span>{selectedModel.name}</span>
-              {selectedModel.badge && (
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-semibold uppercase">
-                  {selectedModel.badge}
-                </span>
-              )}
-            </div>
-          </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-            <Settings2 className="w-4 h-4" />
-          </Button>
-        </div>
-
         {/* Input Area */}
         <div className="p-4 border-t border-border">
           <form onSubmit={handleSubmit} className="max-w-3xl mx-auto relative">
@@ -502,39 +559,106 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
             )}
             
             <div className="relative bg-card rounded-2xl border border-border focus-within:border-primary/50 focus-within:shadow-glow transition-all">
-              <Textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Send a message or type / for commands..."
-                className="min-h-[56px] max-h-[200px] resize-none bg-transparent border-0 focus-visible:ring-0 pr-24 py-4 text-sm"
-                disabled={isProcessing}
-              />
-              <div className="absolute right-2 bottom-2 flex items-center gap-2">
-                {isProcessing && (
+              {/* Attachments Preview */}
+              {attachments.length > 0 && (
+                <div className="p-2 border-b border-border flex flex-wrap gap-2">
+                  {attachments.map((file) => (
+                    <div
+                      key={file.id}
+                      className="flex items-center gap-2 px-2 py-1.5 bg-muted rounded-lg text-xs group"
+                    >
+                      {file.url ? (
+                        <img src={file.url} alt={file.name} className="w-8 h-8 rounded object-cover" />
+                      ) : (
+                        <div className="w-8 h-8 rounded bg-muted-foreground/10 flex items-center justify-center text-muted-foreground">
+                          {getFileIcon(file.type)}
+                        </div>
+                      )}
+                      <div className="flex flex-col min-w-0">
+                        <span className="truncate max-w-[100px] font-medium">{file.name}</span>
+                        <span className="text-muted-foreground text-[10px]">{formatFileSize(file.size)}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(file.id)}
+                        className="p-0.5 rounded hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-end">
+                {/* File Upload Button */}
+                <div className="p-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*,audio/*,.txt,.md,.json,.zip,.rar,.7z"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    onClick={stopGeneration}
-                    className="rounded-full h-9 w-9 hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="rounded-full h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted"
+                    disabled={isProcessing}
                   >
-                    <Square className="w-4 h-4" />
+                    <Paperclip className="w-4 h-4" />
                   </Button>
-                )}
-                <Button
-                  type="submit"
-                  size="icon"
-                  disabled={!input.trim() || isProcessing}
-                  className="rounded-full h-9 w-9 bg-primary hover:bg-primary/90 shadow-sm"
-                >
-                  {isProcessing ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
+                </div>
+
+                <Textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Send a message or type / for commands..."
+                  className="min-h-[56px] max-h-[200px] flex-1 resize-none bg-transparent border-0 focus-visible:ring-0 pr-24 py-4 text-sm"
+                  disabled={isProcessing}
+                />
+                
+                <div className="p-2 flex items-center gap-2">
+                  {isProcessing && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={stopGeneration}
+                      className="rounded-full h-9 w-9 hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Square className="w-4 h-4" />
+                    </Button>
                   )}
-                </Button>
+                  <Button
+                    type="submit"
+                    size="icon"
+                    disabled={(!input.trim() && attachments.length === 0) || isProcessing}
+                    className="rounded-full h-9 w-9 bg-primary hover:bg-primary/90 shadow-sm"
+                  >
+                    {isProcessing ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Hint bar */}
+              <div className="px-3 py-1.5 border-t border-border/50 flex items-center justify-between text-[10px] text-muted-foreground">
+                <div className="flex items-center gap-3">
+                  <span><kbd className="px-1 rounded bg-muted">⌘/Ctrl</kbd> + <kbd className="px-1 rounded bg-muted">Enter</kbd> to send</span>
+                  <span><kbd className="px-1 rounded bg-muted">/</kbd> for commands</span>
+                </div>
+                <span className="text-muted-foreground/70">
+                  Supports: images, audio, text, zip, rar
+                </span>
               </div>
             </div>
           </form>
