@@ -76,16 +76,16 @@ const mockTasks: Task[] = [
 ];
 
 const statusConfig = {
-  completed: { icon: CheckCircle2, color: "text-green-500", bg: "bg-green-500/10", label: "Completed" },
+  completed: { icon: CheckCircle2, color: "text-success", bg: "bg-success/10", label: "Completed" },
   running: { icon: Clock, color: "text-primary", bg: "bg-primary/10", label: "Running" },
-  pending: { icon: Clock, color: "text-yellow-500", bg: "bg-yellow-500/10", label: "Pending" },
-  failed: { icon: AlertCircle, color: "text-red-500", bg: "bg-red-500/10", label: "Failed" },
+  pending: { icon: Clock, color: "text-warning", bg: "bg-warning-background", label: "Pending" },
+  failed: { icon: AlertCircle, color: "text-destructive", bg: "bg-destructive/10", label: "Failed" },
 };
 
 const priorityConfig = {
-  high: { color: "text-red-500", bg: "bg-red-500/10" },
-  medium: { color: "text-yellow-500", bg: "bg-yellow-500/10" },
-  low: { color: "text-green-500", bg: "bg-green-500/10" },
+  high: { color: "text-destructive", bg: "bg-destructive/10" },
+  medium: { color: "text-warning", bg: "bg-warning-background" },
+  low: { color: "text-success", bg: "bg-success/10" },
 };
 
 export default function Tasks() {
@@ -107,19 +107,19 @@ export default function Tasks() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 bg-background-secondary min-h-screen">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10 glow-primary">
-            <GitBranch className="w-5 h-5 text-primary" />
+          <div className="p-2 rounded-lg bg-primary text-primary-foreground">
+            <GitBranch className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold">Task Manager</h1>
+            <h1 className="text-xl font-semibold text-foreground">Task Manager</h1>
             <p className="text-xs text-muted-foreground">Orchestration & Tracking • V19.5</p>
           </div>
         </div>
-        <Button className="bg-primary hover:bg-primary/90 glow-primary">
+        <Button className="bg-primary hover:bg-primary/90">
           <Plus className="w-4 h-4 mr-2" />
           New Task
         </Button>
@@ -129,12 +129,12 @@ export default function Tasks() {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
           { label: "Total", value: stats.total, color: "text-foreground" },
-          { label: "Completed", value: stats.completed, color: "text-green-500" },
+          { label: "Completed", value: stats.completed, color: "text-success" },
           { label: "Running", value: stats.running, color: "text-primary" },
-          { label: "Pending", value: stats.pending, color: "text-yellow-500" },
-          { label: "Failed", value: stats.failed, color: "text-red-500" },
+          { label: "Pending", value: stats.pending, color: "text-warning" },
+          { label: "Failed", value: stats.failed, color: "text-destructive" },
         ].map((stat) => (
-          <div key={stat.label} className="p-4 rounded-xl glass border border-border text-center">
+          <div key={stat.label} className="p-4 rounded-xl bg-card border border-border text-center">
             <p className={cn("text-2xl font-bold", stat.color)}>{stat.value}</p>
             <p className="text-xs text-muted-foreground">{stat.label}</p>
           </div>
@@ -149,7 +149,7 @@ export default function Tasks() {
             placeholder="Search tasks..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-secondary/50 border-border"
+            className="pl-10 bg-card border-border"
           />
         </div>
         <Button variant="outline" size="sm" className="border-border">
@@ -160,7 +160,7 @@ export default function Tasks() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-secondary/50">
+        <TabsList className="bg-muted">
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="running">Running</TabsTrigger>
           <TabsTrigger value="pending">Pending</TabsTrigger>
@@ -178,7 +178,7 @@ export default function Tasks() {
               return (
                 <div
                   key={task.id}
-                  className="p-4 rounded-xl glass border border-border hover:border-primary/30 transition-all cursor-pointer"
+                  className="p-4 rounded-xl bg-card border border-border hover:border-primary/30 hover:shadow-md transition-all cursor-pointer"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3">
@@ -186,13 +186,13 @@ export default function Tasks() {
                         <StatusIcon className={cn("w-4 h-4", status.color)} />
                       </div>
                       <div>
-                        <h3 className="font-medium">{task.title}</h3>
+                        <h3 className="font-medium text-foreground">{task.title}</h3>
                         <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
                         <div className="flex items-center gap-3 mt-3">
-                          <span className={cn("px-2 py-0.5 rounded text-xs", priority.bg, priority.color)}>
+                          <span className={cn("px-2 py-0.5 rounded text-xs font-medium", priority.bg, priority.color)}>
                             {task.priority}
                           </span>
-                          <span className="px-2 py-0.5 rounded text-xs bg-secondary text-muted-foreground">
+                          <span className="px-2 py-0.5 rounded text-xs bg-muted text-muted-foreground">
                             {task.type}
                           </span>
                           <span className="text-xs text-muted-foreground">{task.createdAt}</span>
@@ -202,7 +202,7 @@ export default function Tasks() {
                         </div>
                       </div>
                     </div>
-                    <span className={cn("px-2 py-1 rounded-lg text-xs", status.bg, status.color)}>
+                    <span className={cn("px-2 py-1 rounded-lg text-xs font-medium", status.bg, status.color)}>
                       {status.label}
                     </span>
                   </div>

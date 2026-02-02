@@ -48,7 +48,6 @@ export default function Chat() {
     setInput("");
     setIsLoading(true);
 
-    // Simulate AI response
     setTimeout(() => {
       const responses = [
         "I've analyzed your request. Based on the Dual Thinking Engine's assessment:\n\n**Primary Analysis:**\n- Code structure follows best practices\n- No critical vulnerabilities detected\n- Recommended optimizations identified\n\n**Secondary Review:**\nThe codebase shows good modularity. Consider implementing unit tests for the new components.",
@@ -82,15 +81,15 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen bg-background-secondary">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border glass">
+      <div className="flex items-center justify-between p-4 border-b border-border bg-card">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10 glow-primary">
-            <Bot className="w-5 h-5 text-primary" />
+          <div className="p-2 rounded-lg bg-primary text-primary-foreground">
+            <Bot className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="font-semibold">Dive Coder AI</h1>
+            <h1 className="font-semibold text-foreground">Dive Coder AI</h1>
             <p className="text-xs text-muted-foreground">Dual Thinking Engine • V19.5</p>
           </div>
         </div>
@@ -122,37 +121,43 @@ export default function Chat() {
                   "max-w-[80%] p-4 rounded-xl relative group",
                   message.role === "user"
                     ? "bg-primary text-primary-foreground"
-                    : "glass border border-border"
+                    : "bg-card border border-border"
                 )}
               >
                 <div
-                  className="text-sm whitespace-pre-wrap prose prose-invert prose-sm max-w-none"
+                  className={cn(
+                    "text-sm whitespace-pre-wrap prose prose-sm max-w-none",
+                    message.role === "user" ? "prose-invert" : ""
+                  )}
                   dangerouslySetInnerHTML={{
                     __html: message.content
                       .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-                      .replace(/`([^`]+)`/g, '<code class="bg-secondary/50 px-1 rounded">$1</code>')
-                      .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre class="bg-secondary/50 p-3 rounded-lg mt-2 overflow-x-auto"><code>$2</code></pre>')
+                      .replace(/`([^`]+)`/g, `<code class="${message.role === 'user' ? 'bg-white/20' : 'bg-muted'} px-1 rounded text-${message.role === 'user' ? 'white' : 'primary'}">$1</code>`)
+                      .replace(/```(\w+)?\n([\s\S]*?)```/g, `<pre class="${message.role === 'user' ? 'bg-white/10' : 'bg-muted'} p-3 rounded-lg mt-2 overflow-x-auto"><code>$2</code></pre>`)
                       .replace(/\n/g, "<br>"),
                   }}
                 />
                 {message.role === "assistant" && (
                   <button
                     onClick={() => handleCopy(message.id, message.content)}
-                    className="absolute top-2 right-2 p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity bg-secondary/80 hover:bg-secondary"
+                    className="absolute top-2 right-2 p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity bg-muted hover:bg-muted/80"
                   >
                     {copiedId === message.id ? (
-                      <Check className="w-3.5 h-3.5 text-green-500" />
+                      <Check className="w-3.5 h-3.5 text-success" />
                     ) : (
                       <Copy className="w-3.5 h-3.5 text-muted-foreground" />
                     )}
                   </button>
                 )}
-                <p className="text-[10px] text-muted-foreground mt-2 opacity-60">
+                <p className={cn(
+                  "text-[10px] mt-2 opacity-60",
+                  message.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"
+                )}>
                   {message.timestamp.toLocaleTimeString()}
                 </p>
               </div>
               {message.role === "user" && (
-                <div className="flex-shrink-0 p-2 rounded-lg bg-secondary h-fit">
+                <div className="flex-shrink-0 p-2 rounded-lg bg-muted h-fit">
                   <User className="w-4 h-4 text-muted-foreground" />
                 </div>
               )}
@@ -163,7 +168,7 @@ export default function Chat() {
               <div className="flex-shrink-0 p-2 rounded-lg bg-primary/10 h-fit">
                 <Sparkles className="w-4 h-4 text-primary animate-pulse" />
               </div>
-              <div className="glass border border-border p-4 rounded-xl">
+              <div className="bg-card border border-border p-4 rounded-xl">
                 <div className="flex gap-1">
                   <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0ms" }} />
                   <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: "150ms" }} />
@@ -176,19 +181,19 @@ export default function Chat() {
       </ScrollArea>
 
       {/* Input */}
-      <div className="p-4 border-t border-border glass">
+      <div className="p-4 border-t border-border bg-card">
         <div className="max-w-4xl mx-auto flex gap-3">
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask Dive Coder anything... (Shift+Enter for new line)"
-            className="min-h-[52px] max-h-[200px] resize-none bg-secondary/50 border-border focus:border-primary/50"
+            className="min-h-[52px] max-h-[200px] resize-none bg-background-secondary border-border focus:border-primary"
           />
           <Button
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
-            className="px-4 bg-primary hover:bg-primary/90 glow-primary"
+            className="px-4 bg-primary hover:bg-primary/90"
           >
             <Send className="w-4 h-4" />
           </Button>

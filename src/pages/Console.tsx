@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Terminal, Play, Trash2, Download, Copy, Check } from "lucide-react";
+import { Terminal, Play, Trash2, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -99,7 +99,6 @@ export default function Console() {
   const executeCommand = (cmd: string) => {
     const trimmedCmd = cmd.trim().toLowerCase();
     
-    // Add command to logs
     const commandEntry: LogEntry = {
       id: Date.now().toString(),
       type: "command",
@@ -108,13 +107,11 @@ export default function Console() {
     };
     setLogs((prev) => [...prev, commandEntry]);
 
-    // Handle clear command
     if (trimmedCmd === "clear") {
       setLogs(initialLogs);
       return;
     }
 
-    // Execute command
     const response = commands[trimmedCmd];
     if (response) {
       const outputEntry: LogEntry = {
@@ -138,7 +135,6 @@ export default function Console() {
       }, 100);
     }
 
-    // Add to history
     setHistory((prev) => [cmd, ...prev.slice(0, 49)]);
     setHistoryIndex(-1);
   };
@@ -181,21 +177,21 @@ export default function Console() {
   const typeStyles: Record<string, string> = {
     command: "text-primary font-bold",
     output: "text-foreground",
-    error: "text-red-500",
-    success: "text-green-500",
+    error: "text-destructive",
+    success: "text-success",
     info: "text-muted-foreground italic",
   };
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen bg-background">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border glass">
+      <div className="flex items-center justify-between p-4 border-b border-border bg-card">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10 glow-primary">
-            <Terminal className="w-5 h-5 text-primary" />
+          <div className="p-2 rounded-lg bg-primary text-primary-foreground">
+            <Terminal className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="font-semibold">Dive Console</h1>
+            <h1 className="font-semibold text-foreground">Dive Console</h1>
             <p className="text-xs text-muted-foreground">Interactive Terminal • V19.5</p>
           </div>
         </div>
@@ -206,7 +202,7 @@ export default function Console() {
             onClick={copyLogs}
             className="text-muted-foreground hover:text-primary"
           >
-            {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+            {copied ? <Check className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
           </Button>
           <Button
             variant="ghost"
@@ -223,7 +219,7 @@ export default function Console() {
       <div
         ref={scrollRef}
         onClick={() => inputRef.current?.focus()}
-        className="flex-1 p-4 overflow-y-auto scrollbar-thin bg-background font-mono text-sm cursor-text"
+        className="flex-1 p-4 overflow-y-auto scrollbar-thin bg-background-secondary font-mono text-sm cursor-text"
       >
         {logs.map((log) => (
           <div key={log.id} className="mb-1">
@@ -235,7 +231,7 @@ export default function Console() {
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="p-4 border-t border-border glass">
+      <form onSubmit={handleSubmit} className="p-4 border-t border-border bg-card">
         <div className="flex items-center gap-2 font-mono">
           <span className="text-primary font-bold">$</span>
           <input
@@ -246,7 +242,7 @@ export default function Console() {
             onKeyDown={handleKeyDown}
             placeholder="Enter command..."
             autoFocus
-            className="flex-1 bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"
+            className="flex-1 bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground"
           />
           <Button type="submit" size="sm" className="bg-primary hover:bg-primary/90">
             <Play className="w-3 h-3" />

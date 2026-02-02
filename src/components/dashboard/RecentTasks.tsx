@@ -21,8 +21,8 @@ const mockTasks: Task[] = [
 const statusConfig = {
   completed: {
     icon: CheckCircle2,
-    color: "text-green-500",
-    bg: "bg-green-500/10",
+    color: "text-success",
+    bg: "bg-success/10",
   },
   running: {
     icon: Clock,
@@ -31,19 +31,19 @@ const statusConfig = {
   },
   failed: {
     icon: AlertCircle,
-    color: "text-red-500",
-    bg: "bg-red-500/10",
+    color: "text-destructive",
+    bg: "bg-destructive/10",
   },
   pending: {
     icon: Clock,
-    color: "text-yellow-500",
-    bg: "bg-yellow-500/10",
+    color: "text-warning",
+    bg: "bg-warning-background",
   },
 };
 
 export function RecentTasks() {
   return (
-    <div className="p-5 rounded-xl glass border border-border">
+    <div className="p-5 rounded-xl bg-card border border-border">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-muted-foreground">Recent Tasks</h3>
         <Link to="/tasks">
@@ -60,13 +60,13 @@ export function RecentTasks() {
           return (
             <div
               key={task.id}
-              className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors cursor-pointer"
+              className="flex items-center gap-3 p-3 rounded-lg bg-background-secondary hover:bg-muted transition-colors cursor-pointer"
             >
               <div className={cn("p-1.5 rounded-md", config.bg)}>
                 <StatusIcon className={cn("w-4 h-4", config.color)} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{task.title}</p>
+                <p className="text-sm font-medium truncate text-foreground">{task.title}</p>
               </div>
               <span className="text-xs text-muted-foreground whitespace-nowrap">{task.time}</span>
             </div>

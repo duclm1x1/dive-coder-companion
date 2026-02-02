@@ -22,32 +22,32 @@ export function StatsCard({
   variant = "default",
 }: StatsCardProps) {
   const variantStyles = {
-    default: "border-border",
-    primary: "border-primary/30 glow-primary",
-    accent: "border-accent/30 glow-accent",
-    warning: "border-yellow-500/30",
-    success: "border-green-500/30",
+    default: "border-border hover:border-border-hover",
+    primary: "border-primary/20 hover:border-primary/40",
+    accent: "border-accent/20 hover:border-accent/40",
+    warning: "border-warning/20 hover:border-warning/40",
+    success: "border-success/20 hover:border-success/40",
   };
 
   const iconStyles = {
-    default: "bg-secondary text-muted-foreground",
+    default: "bg-muted text-muted-foreground",
     primary: "bg-primary/10 text-primary",
     accent: "bg-accent/10 text-accent",
-    warning: "bg-yellow-500/10 text-yellow-500",
-    success: "bg-green-500/10 text-green-500",
+    warning: "bg-warning-background text-warning",
+    success: "bg-success/10 text-success",
   };
 
   return (
     <div
       className={cn(
-        "p-5 rounded-xl glass border transition-all duration-300 hover:scale-[1.02]",
+        "p-5 rounded-xl bg-card border transition-all duration-300 hover:shadow-md",
         variantStyles[variant]
       )}
     >
       <div className="flex items-start justify-between">
         <div className="space-y-1">
           <p className="text-sm text-muted-foreground">{title}</p>
-          <p className="text-2xl font-bold tracking-tight">{value}</p>
+          <p className="text-2xl font-bold tracking-tight text-foreground">{value}</p>
           {subtitle && (
             <p className="text-xs text-muted-foreground">{subtitle}</p>
           )}
@@ -61,7 +61,7 @@ export function StatsCard({
           <span
             className={cn(
               "text-xs font-medium",
-              trend.isPositive ? "text-green-500" : "text-red-500"
+              trend.isPositive ? "text-success" : "text-destructive"
             )}
           >
             {trend.isPositive ? "+" : "-"}{Math.abs(trend.value)}%
