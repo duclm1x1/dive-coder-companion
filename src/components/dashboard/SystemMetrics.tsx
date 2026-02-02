@@ -28,20 +28,20 @@ const colorStyles = {
     progress: "[&>div]:bg-accent",
   },
   warning: {
-    text: "text-yellow-500",
-    bg: "bg-yellow-500/10",
-    progress: "[&>div]:bg-yellow-500",
+    text: "text-warning",
+    bg: "bg-warning-background",
+    progress: "[&>div]:bg-warning",
   },
   success: {
-    text: "text-green-500",
-    bg: "bg-green-500/10",
-    progress: "[&>div]:bg-green-500",
+    text: "text-success",
+    bg: "bg-success/10",
+    progress: "[&>div]:bg-success",
   },
 };
 
 export function SystemMetrics() {
   return (
-    <div className="p-5 rounded-xl glass border border-border">
+    <div className="p-5 rounded-xl bg-card border border-border">
       <h3 className="text-sm font-medium text-muted-foreground mb-4">System Metrics</h3>
       <div className="space-y-4">
         {metrics.map((metric) => {
@@ -55,11 +55,11 @@ export function SystemMetrics() {
                   <div className={cn("p-1.5 rounded-md", styles.bg)}>
                     <Icon className={cn("w-3.5 h-3.5", styles.text)} />
                   </div>
-                  <span className="text-sm">{metric.label}</span>
+                  <span className="text-sm text-foreground">{metric.label}</span>
                 </div>
                 <span className={cn("text-sm font-medium", styles.text)}>{metric.value}%</span>
               </div>
-              <Progress value={metric.value} className={cn("h-1.5 bg-secondary", styles.progress)} />
+              <Progress value={metric.value} className={cn("h-1.5 bg-muted", styles.progress)} />
             </div>
           );
         })}

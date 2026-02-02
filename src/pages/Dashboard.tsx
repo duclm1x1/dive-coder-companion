@@ -2,20 +2,20 @@ import { StatsCard } from "@/components/dashboard/StatsCard";
 import { ActivityChart } from "@/components/dashboard/ActivityChart";
 import { RecentTasks } from "@/components/dashboard/RecentTasks";
 import { SystemMetrics } from "@/components/dashboard/SystemMetrics";
-import { Zap, GitBranch, AlertTriangle, CheckCircle2, MessageSquare, Code } from "lucide-react";
+import { Zap, GitBranch, AlertTriangle, CheckCircle2, MessageSquare } from "lucide-react";
 
 export default function Dashboard() {
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 bg-background-secondary min-h-screen">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-glow text-primary">Dive Coder Console</h1>
+          <h1 className="text-2xl font-bold text-primary">Dive Coder Console</h1>
           <p className="text-sm text-muted-foreground mt-1">V19.5 • Dual Thinking Engine Active</p>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 border border-primary/30">
-          <Zap className="w-4 h-4 text-primary animate-pulse" />
-          <span className="text-sm text-primary font-medium">Engine Online</span>
+        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-success/10 border border-success/20">
+          <Zap className="w-4 h-4 text-success" />
+          <span className="text-sm text-success font-medium">Engine Online</span>
         </div>
       </div>
 
@@ -68,7 +68,7 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="p-5 rounded-xl glass border border-border">
+      <div className="p-5 rounded-xl bg-card border border-border">
         <h3 className="text-sm font-medium text-muted-foreground mb-4">Quick Commands</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
@@ -79,9 +79,9 @@ export default function Dashboard() {
           ].map((item) => (
             <button
               key={item.cmd}
-              className="p-3 rounded-lg bg-secondary/50 hover:bg-secondary border border-border hover:border-primary/30 transition-all text-left group"
+              className="p-3 rounded-lg bg-background-secondary hover:bg-muted border border-border hover:border-primary/30 transition-all text-left group"
             >
-              <code className="text-sm text-primary font-mono group-hover:text-glow">{item.cmd}</code>
+              <code className="text-sm text-primary font-mono">{item.cmd}</code>
               <p className="text-xs text-muted-foreground mt-1">{item.desc}</p>
             </button>
           ))}

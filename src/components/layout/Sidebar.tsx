@@ -40,12 +40,12 @@ export function Sidebar() {
     >
       {/* Logo */}
       <div className="flex items-center gap-3 p-4 border-b border-sidebar-border">
-        <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10 glow-primary">
-          <Cpu className="w-6 h-6 text-primary" />
+        <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary text-primary-foreground">
+          <Cpu className="w-6 h-6" />
         </div>
         {!collapsed && (
           <div className="flex flex-col">
-            <span className="text-lg font-bold text-glow text-primary">DIVE CODER</span>
+            <span className="text-lg font-bold text-primary">DIVE CODER</span>
             <span className="text-xs text-muted-foreground">V19.5</span>
           </div>
         )}
@@ -65,7 +65,7 @@ export function Sidebar() {
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
                     "hover:bg-sidebar-accent group",
-                    isActive && "bg-primary/10 text-primary glow-primary"
+                    isActive && "bg-primary/10 text-primary border border-primary/20"
                   )}
                 >
                   <NavIcon
@@ -78,7 +78,7 @@ export function Sidebar() {
                     <span
                       className={cn(
                         "text-sm font-medium transition-colors",
-                        isActive ? "text-primary" : "text-sidebar-foreground group-hover:text-primary"
+                        isActive ? "text-primary" : "text-sidebar-foreground group-hover:text-foreground"
                       )}
                     >
                       {item.label}
@@ -99,13 +99,13 @@ export function Sidebar() {
       {/* Status Indicator */}
       <div className={cn("p-3 border-t border-sidebar-border", collapsed && "flex justify-center")}>
         {!collapsed ? (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sidebar-accent">
-            <div className="w-2 h-2 rounded-full bg-primary animate-pulse-glow" />
-            <span className="text-xs text-muted-foreground">Engine Active</span>
-            <Zap className="w-3 h-3 text-primary ml-auto" />
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/10 border border-success/20">
+            <div className="w-2 h-2 rounded-full bg-success animate-pulse-dot" />
+            <span className="text-xs text-success font-medium">Engine Active</span>
+            <Zap className="w-3 h-3 text-success ml-auto" />
           </div>
         ) : (
-          <div className="w-2 h-2 rounded-full bg-primary animate-pulse-glow" />
+          <div className="w-2 h-2 rounded-full bg-success animate-pulse-dot" />
         )}
       </div>
 
