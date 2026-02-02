@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { 
   Wifi, WifiOff, Play, Square, RefreshCw, 
-  LayoutGrid, ChevronDown, Folder, Plus, Trash2, Edit2, FolderOpen, HardDrive
+  LayoutGrid, ChevronDown, Folder, Plus, Trash2, FolderOpen, HardDrive, Brain
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { useLocalWorkspaces, Workspace } from "@/hooks/useLocalWorkspaces";
 import { cn } from "@/lib/utils";
+import { DIVE_CODER_VERSION } from "@/lib/dive-coder-config";
 
 interface UnifiedHeaderProps {
   isConnected: boolean;
@@ -73,12 +74,17 @@ export function UnifiedHeader({
       <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-background">
         {/* Left - Logo */}
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
-            <span className="text-white font-bold text-sm">DC</span>
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-glow">
+            <Brain className="w-4 h-4 text-primary-foreground" />
           </div>
           <div className="flex flex-col">
-            <span className="text-primary font-bold text-sm">Dive Coder</span>
-            <span className="text-muted-foreground text-xs">Dive the Code, Feel the Flow</span>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-sm gradient-text">Dive Coder</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary font-bold">
+                {DIVE_CODER_VERSION}
+              </span>
+            </div>
+            <span className="text-muted-foreground text-[10px]">Dive the Code, Feel the Flow</span>
           </div>
         </div>
 

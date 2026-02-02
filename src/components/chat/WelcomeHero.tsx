@@ -1,6 +1,14 @@
-import { Brain, Code, TestTube, Sparkles, AlertTriangle, MessageSquare } from "lucide-react";
+import { Brain, Code, TestTube, Sparkles, AlertTriangle, MessageSquare, Command } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { DIVE_CODER_VERSION, DIVE_CODER_EDITION, EXAMPLE_PROMPTS } from "@/lib/dive-coder-config";
+import { 
+  DIVE_CODER_VERSION, 
+  DIVE_CODER_EDITION, 
+  DIVE_CODER_STATUS,
+  DIVE_STATS,
+  EXAMPLE_PROMPTS,
+  SLASH_COMMANDS
+} from "@/lib/dive-coder-config";
+import { useState } from "react";
 
 interface WelcomeHeroProps {
   onSelectPrompt: (prompt: string) => void;
@@ -14,6 +22,8 @@ const iconMap: Record<string, React.ReactNode> = {
 };
 
 export function WelcomeHero({ onSelectPrompt }: WelcomeHeroProps) {
+  const [showCommands, setShowCommands] = useState(false);
+
   return (
     <div className="h-full flex flex-col items-center justify-center p-6 animate-fade-in">
       {/* Logo & Branding */}
@@ -31,14 +41,28 @@ export function WelcomeHero({ onSelectPrompt }: WelcomeHeroProps) {
         Dive Coder
       </h1>
       <p className="text-sm text-muted-foreground mb-1">
-        {DIVE_CODER_EDITION}
+        {DIVE_CODER_EDITION} • {DIVE_CODER_STATUS}
       </p>
+      
+      {/* Stats Badge */}
+      <div className="flex items-center gap-3 mb-6">
+        <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary font-medium">
+          {DIVE_STATS.skills}+ Skills
+        </span>
+        <span className="text-xs px-2 py-1 rounded-full bg-secondary/10 text-secondary font-medium">
+          {DIVE_STATS.testSuites} Test Suites
+        </span>
+        <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground font-medium">
+          {DIVE_STATS.totalFiles} Files
+        </span>
+      </div>
+
       <p className="text-muted-foreground text-center max-w-md text-sm mb-8">
-        Your AI-powered coding assistant. Ask me anything about coding, debugging, or building your project.
+        AI-powered coding assistant with Enterprise RAG, CPCG, SHC, and Dual Thinking.
       </p>
 
       {/* Quick Prompts */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl mb-6">
         {EXAMPLE_PROMPTS.map((item, i) => (
           <button
             key={i}
@@ -65,12 +89,40 @@ export function WelcomeHero({ onSelectPrompt }: WelcomeHeroProps) {
         ))}
       </div>
 
+      {/* Slash Commands Toggle */}
+      <button
+        onClick={() => setShowCommands(!showCommands)}
+        className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors mb-4"
+      >
+        <Command className="w-3.5 h-3.5" />
+        <span>{showCommands ? "Hide" : "Show"} {SLASH_COMMANDS.length} slash commands</span>
+      </button>
+
+      {/* Slash Commands Grid */}
+      {showCommands && (
+        <div className="w-full max-w-2xl grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6 animate-fade-in">
+          {SLASH_COMMANDS.slice(0, 8).map((cmd) => (
+            <button
+              key={cmd.command}
+              onClick={() => onSelectPrompt(cmd.command)}
+              className="text-left p-2 rounded-lg bg-muted/50 hover:bg-primary/10 border border-transparent hover:border-primary/30 transition-all"
+            >
+              <p className="text-xs font-mono text-primary">{cmd.command}</p>
+              <p className="text-[10px] text-muted-foreground truncate">{cmd.description}</p>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Keyboard shortcut hint */}
-      <div className="mt-8 flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <kbd className="px-2 py-1 rounded bg-muted border border-border font-mono">⌘</kbd>
         <span>+</span>
         <kbd className="px-2 py-1 rounded bg-muted border border-border font-mono">Enter</kbd>
-        <span>to send message</span>
+        <span>to send</span>
+        <span className="mx-2 text-border">•</span>
+        <kbd className="px-2 py-1 rounded bg-muted border border-border font-mono">/</kbd>
+        <span>for commands</span>
       </div>
     </div>
   );
