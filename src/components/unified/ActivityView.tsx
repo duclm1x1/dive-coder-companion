@@ -110,9 +110,9 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
     onTranscript: (text) => setInput(prev => prev + text),
   });
 
-  // Get auth token for API calls
+  // Get auth token for API calls (use anon key if not authenticated)
   const getAuthToken = useCallback(() => {
-    return session?.access_token || "";
+    return session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   }, [session]);
 
   // Export chat
@@ -304,9 +304,6 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
         .map(m => ({ role: m.role, content: m.content }));
 
       const authToken = getAuthToken();
-      if (!authToken) {
-        throw new Error("Not authenticated. Please sign in again.");
-      }
 
       const response = await fetch(CHAT_URL, {
         method: "POST",
