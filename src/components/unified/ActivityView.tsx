@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { 
   Send, User, Bot, Square,
-  Loader2, ChevronDown, Settings2
+  Loader2, ChevronDown, Settings2, Command
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import ReactMarkdown from "react-markdown";
 import { CodeBlock } from "@/components/chat/CodeBlock";
 import { WelcomeHero } from "@/components/chat/WelcomeHero";
 import { MonitorSidebar } from "@/components/chat/MonitorSidebar";
+import { SLASH_COMMANDS, DIVE_CODER_VERSION } from "@/lib/dive-coder-config";
 
 interface AIModel {
   id: string;
@@ -74,8 +75,26 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
   const [latencyHistory, setLatencyHistory] = useState<number[]>([]);
   const [conversationTitle, setConversationTitle] = useState("");
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Filter commands based on input
+  const filteredCommands = useMemo(() => {
+    if (!input.startsWith('/')) return [];
+    const query = input.toLowerCase();
+    return SLASH_COMMANDS.filter(cmd => 
+      cmd.command.toLowerCase().includes(query) || 
+      cmd.description.toLowerCase().includes(query)
+    ).slice(0, 6);
+  }, [input]);
+
+  // Show command palette when typing /
+  useEffect(() => {
+    setShowCommandPalette(input.startsWith('/') && filteredCommands.length > 0);
+    setSelectedCommandIndex(0);
+  }, [input, filteredCommands.length]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -234,10 +253,47 @@ Is there anything specific you'd like me to focus on?`;
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Handle command palette navigation
+    if (showCommandPalette) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedCommandIndex(prev => 
+          prev < filteredCommands.length - 1 ? prev + 1 : 0
+        );
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedCommandIndex(prev => 
+          prev > 0 ? prev - 1 : filteredCommands.length - 1
+        );
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.metaKey && !e.ctrlKey)) {
+        e.preventDefault();
+        const selectedCmd = filteredCommands[selectedCommandIndex];
+        if (selectedCmd) {
+          setInput(selectedCmd.command + " ");
+          setShowCommandPalette(false);
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        setShowCommandPalette(false);
+        return;
+      }
+    }
+    
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleSubmit();
     }
+  };
+
+  const selectCommand = (cmd: typeof SLASH_COMMANDS[0]) => {
+    setInput(cmd.command + " ");
+    setShowCommandPalette(false);
+    textareaRef.current?.focus();
   };
 
   const handleSelectPrompt = (prompt: string) => {
@@ -390,14 +446,52 @@ Is there anything specific you'd like me to focus on?`;
 
         {/* Input Area */}
         <div className="p-4 border-t border-border">
-          <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
+          <form onSubmit={handleSubmit} className="max-w-3xl mx-auto relative">
+            {/* Command Palette */}
+            {showCommandPalette && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden animate-fade-in z-10">
+                <div className="p-2 border-b border-border bg-muted/50">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Command className="w-3.5 h-3.5" />
+                    <span>Dive Coder {DIVE_CODER_VERSION} Commands</span>
+                  </div>
+                </div>
+                <div className="max-h-64 overflow-auto">
+                  {filteredCommands.map((cmd, idx) => (
+                    <button
+                      key={cmd.command}
+                      type="button"
+                      onClick={() => selectCommand(cmd)}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2 text-left transition-colors",
+                        idx === selectedCommandIndex 
+                          ? "bg-primary/10 text-primary" 
+                          : "hover:bg-muted"
+                      )}
+                    >
+                      <span className="font-mono text-sm font-medium">{cmd.command}</span>
+                      <span className="text-xs text-muted-foreground flex-1">{cmd.description}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                        {cmd.category}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div className="p-2 border-t border-border bg-muted/30 text-[10px] text-muted-foreground flex items-center gap-4">
+                  <span><kbd className="px-1 rounded bg-muted">↑↓</kbd> navigate</span>
+                  <span><kbd className="px-1 rounded bg-muted">Tab</kbd> select</span>
+                  <span><kbd className="px-1 rounded bg-muted">Esc</kbd> close</span>
+                </div>
+              </div>
+            )}
+            
             <div className="relative bg-card rounded-2xl border border-border focus-within:border-primary/50 focus-within:shadow-glow transition-all">
               <Textarea
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Send a message... (⌘+Enter to send)"
+                placeholder="Send a message or type / for commands..."
                 className="min-h-[56px] max-h-[200px] resize-none bg-transparent border-0 focus-visible:ring-0 pr-24 py-4 text-sm"
                 disabled={isProcessing}
               />

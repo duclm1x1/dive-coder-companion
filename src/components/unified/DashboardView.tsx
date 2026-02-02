@@ -1,4 +1,6 @@
-import { Zap, CheckCircle, DollarSign, Sparkles, Clock, TrendingUp } from "lucide-react";
+import { Zap, CheckCircle, DollarSign, Sparkles, Clock, TrendingUp, Brain, Cpu, Shield, Command, Database } from "lucide-react";
+import { DIVE_CODER_VERSION, DIVE_CODER_EDITION, DIVE_STATS, DIVE_FEATURES } from "@/lib/dive-coder-config";
+import { cn } from "@/lib/utils";
 
 interface DashboardViewProps {
   isConnected: boolean;
@@ -12,43 +14,106 @@ interface DashboardViewProps {
   };
 }
 
+const featureIcons: Record<string, React.ReactNode> = {
+  Database: <Database className="w-5 h-5" />,
+  Cpu: <Cpu className="w-5 h-5" />,
+  Shield: <Shield className="w-5 h-5" />,
+  Brain: <Brain className="w-5 h-5" />,
+  Command: <Command className="w-5 h-5" />,
+  Sparkles: <Sparkles className="w-5 h-5" />,
+};
+
 export function DashboardView({ isConnected, stats }: DashboardViewProps) {
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6 overflow-auto">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Dive Monitor Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Real-time monitoring and analytics for your AI coding assistant</p>
+      {/* Header with Branding */}
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-glow">
+              <Brain className="w-6 h-6 text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold gradient-text">Dive Monitor</h1>
+              <p className="text-sm text-muted-foreground">{DIVE_CODER_VERSION} {DIVE_CODER_EDITION}</p>
+            </div>
+          </div>
+          <p className="text-muted-foreground mt-2">Real-time monitoring and analytics for your AI coding assistant</p>
+        </div>
+        
+        {/* Quick Stats */}
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <p className="text-2xl font-bold text-primary">{DIVE_STATS.skills}+</p>
+            <p className="text-xs text-muted-foreground">Skills</p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold text-foreground">{DIVE_STATS.totalFiles}</p>
+            <p className="text-xs text-muted-foreground">Files</p>
+          </div>
+        </div>
       </div>
 
       {/* Status Banner */}
-      <div className={`p-4 rounded-xl flex items-center gap-3 ${
+      <div className={cn(
+        "p-4 rounded-xl flex items-center gap-3 transition-all",
         isConnected 
-          ? "bg-emerald-50 border border-emerald-200" 
-          : "bg-amber-50 border border-amber-200"
-      }`}>
-        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-          isConnected ? "bg-emerald-100" : "bg-amber-100"
-        }`}>
-          <Sparkles className={`w-5 h-5 ${isConnected ? "text-emerald-600" : "text-amber-600"}`} />
+          ? "bg-success/10 border border-success/30" 
+          : "bg-warning/10 border border-warning/30"
+      )}>
+        <div className={cn(
+          "w-10 h-10 rounded-lg flex items-center justify-center",
+          isConnected ? "bg-success/20" : "bg-warning/20"
+        )}>
+          <Sparkles className={cn("w-5 h-5", isConnected ? "text-success" : "text-warning")} />
         </div>
-        <div>
-          <p className={`font-medium ${isConnected ? "text-emerald-800" : "text-amber-800"}`}>
-            {isConnected ? "DiveCoder is running" : "Waiting for DiveCoder"}
+        <div className="flex-1">
+          <p className={cn("font-medium", isConnected ? "text-success" : "text-warning")}>
+            {isConnected ? "Dive Coder is running" : "Waiting for Dive Coder"}
           </p>
-          <p className={`text-sm ${isConnected ? "text-emerald-600" : "text-amber-600"}`}>
-            {isConnected ? "Live monitoring data is being collected" : "Start DiveCoder to see live monitoring data"}
+          <p className="text-sm text-muted-foreground">
+            {isConnected ? "Live monitoring data is being collected" : "Start Dive Coder to see live monitoring data"}
           </p>
+        </div>
+        {isConnected && (
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+            <span className="text-xs text-success font-medium">LIVE</span>
+          </div>
+        )}
+      </div>
+
+      {/* V19.5 Features Grid */}
+      <div>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Core Features</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {DIVE_FEATURES.map((feature) => (
+            <div
+              key={feature.id}
+              className={cn(
+                "p-3 rounded-xl border transition-all",
+                feature.enabled 
+                  ? "bg-card border-primary/20 hover:border-primary/40" 
+                  : "bg-muted/50 border-border opacity-50"
+              )}
+            >
+              <div className={cn("mb-2", feature.color)}>
+                {featureIcons[feature.icon]}
+              </div>
+              <p className="text-sm font-medium text-foreground">{feature.label}</p>
+              <p className="text-[10px] text-muted-foreground">{feature.description}</p>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Total Runs */}
-        <div className="p-6 rounded-xl bg-card border border-border">
+        <div className="p-6 rounded-xl bg-card border border-border hover:border-primary/30 transition-colors">
           <div className="flex items-start justify-between">
-            <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center">
-              <Zap className="w-6 h-6 text-slate-700" />
+            <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center">
+              <Zap className="w-6 h-6 text-foreground" />
             </div>
           </div>
           <div className="mt-4">
@@ -59,12 +124,12 @@ export function DashboardView({ isConnected, stats }: DashboardViewProps) {
         </div>
 
         {/* Success Rate */}
-        <div className="p-6 rounded-xl bg-card border border-border">
+        <div className="p-6 rounded-xl bg-card border border-border hover:border-primary/30 transition-colors">
           <div className="flex items-start justify-between">
-            <div className="w-12 h-12 rounded-xl bg-cyan-50 flex items-center justify-center">
-              <CheckCircle className="w-6 h-6 text-cyan-500" />
+            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+              <CheckCircle className="w-6 h-6 text-primary" />
             </div>
-            <div className="flex items-center gap-1 text-emerald-500 text-sm font-medium">
+            <div className="flex items-center gap-1 text-success text-sm font-medium">
               <TrendingUp className="w-4 h-4" />
               +12%
             </div>
@@ -77,10 +142,10 @@ export function DashboardView({ isConnected, stats }: DashboardViewProps) {
         </div>
 
         {/* Total Cost */}
-        <div className="p-6 rounded-xl bg-card border border-border">
+        <div className="p-6 rounded-xl bg-card border border-border hover:border-primary/30 transition-colors">
           <div className="flex items-start justify-between">
-            <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-              <DollarSign className="w-6 h-6 text-amber-500" />
+            <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
+              <DollarSign className="w-6 h-6 text-success" />
             </div>
           </div>
           <div className="mt-4">
@@ -91,10 +156,10 @@ export function DashboardView({ isConnected, stats }: DashboardViewProps) {
         </div>
 
         {/* Active Provider */}
-        <div className="p-6 rounded-xl bg-card border border-border">
+        <div className="p-6 rounded-xl bg-card border border-border hover:border-primary/30 transition-colors">
           <div className="flex items-start justify-between">
-            <div className="w-12 h-12 rounded-xl bg-cyan-50 flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-cyan-500" />
+            <div className="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center">
+              <Sparkles className="w-6 h-6 text-secondary" />
             </div>
           </div>
           <div className="mt-4">
@@ -112,7 +177,8 @@ export function DashboardView({ isConnected, stats }: DashboardViewProps) {
           <Clock className="w-5 h-5 text-muted-foreground" />
         </div>
         <div className="text-center py-8 text-muted-foreground">
-          No recent activity
+          <p>No recent activity</p>
+          <p className="text-xs mt-1">Activity will appear here when you start using Dive Coder</p>
         </div>
       </div>
     </div>
