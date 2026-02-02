@@ -2,12 +2,48 @@ import { useState, useRef, useEffect } from "react";
 import { 
   Brain, Clock, ChevronLeft, ChevronRight, 
   Send, Wrench, Sparkles, FileText, User, Bot,
-  Loader2, CheckCircle, AlertCircle
+  Loader2, CheckCircle, ChevronDown, Settings2,
+  Database, Grid3X3, Circle, Cpu
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import ReactMarkdown from "react-markdown";
+
+interface AIModel {
+  id: string;
+  name: string;
+  provider: string;
+  badge?: string;
+  color: string;
+}
+
+const aiModels: AIModel[] = [
+  { id: "gemini-3-flash", name: "Gemini 3 Flash", provider: "Google", badge: "fast", color: "bg-blue-500" },
+  { id: "gemini-3-pro", name: "Gemini 3 Pro", provider: "Google", badge: "pro", color: "bg-blue-600" },
+  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", provider: "Google", badge: "pro", color: "bg-indigo-500" },
+  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "Google", color: "bg-indigo-400" },
+  { id: "gpt-5", name: "GPT-5", provider: "OpenAI", badge: "pro", color: "bg-emerald-500" },
+  { id: "gpt-5-mini", name: "GPT-5 Mini", provider: "OpenAI", color: "bg-emerald-400" },
+  { id: "gpt-5.2", name: "GPT-5.2", provider: "OpenAI", badge: "latest", color: "bg-green-500" },
+  { id: "claude-sonnet", name: "Claude Sonnet 4.5", provider: "Anthropic", badge: "pro", color: "bg-orange-500" },
+  { id: "claude-opus", name: "Claude Opus 4", provider: "Anthropic", badge: "pro", color: "bg-orange-600" },
+];
+
+interface FeatureToggle {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  enabled: boolean;
+}
 
 interface Message {
   id: string;
@@ -39,6 +75,13 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentStep, setCurrentStep] = useState("");
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<AIModel>(aiModels[0]);
+  const [features, setFeatures] = useState<FeatureToggle[]>([
+    { id: "rag", label: "RAG", icon: <Database className="w-3.5 h-3.5" />, enabled: false },
+    { id: "cpcg", label: "CPCG", icon: <Grid3X3 className="w-3.5 h-3.5" />, enabled: false },
+    { id: "shc", label: "SHC", icon: <Circle className="w-3.5 h-3.5" />, enabled: false },
+    { id: "dual-think", label: "Dual Think", icon: <Cpu className="w-3.5 h-3.5" />, enabled: true },
+  ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -50,15 +93,28 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
     scrollToBottom();
   }, [messages]);
 
+  const toggleFeature = (id: string) => {
+    setFeatures(prev => 
+      prev.map(f => f.id === id ? { ...f, enabled: !f.enabled } : f)
+    );
+  };
+
+  // Group models by provider
+  const modelsByProvider = aiModels.reduce((acc, model) => {
+    if (!acc[model.provider]) acc[model.provider] = [];
+    acc[model.provider].push(model);
+    return acc;
+  }, {} as Record<string, AIModel[]>);
+
   // Simulate AI response with thinking steps
   const simulateAIResponse = async (userMessage: string) => {
     const steps = [
       "Understanding your request...",
       "Analyzing context...",
+      `Using ${selectedModel.name}...`,
       "Generating response...",
     ];
 
-    // Add assistant message placeholder
     const assistantId = `msg-${Date.now()}`;
     setMessages(prev => [...prev, {
       id: assistantId,
@@ -69,10 +125,9 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
       thinkingSteps: [],
     }]);
 
-    // Simulate thinking steps
     for (const step of steps) {
       setCurrentStep(step);
-      await new Promise(r => setTimeout(r, 500 + Math.random() * 500));
+      await new Promise(r => setTimeout(r, 400 + Math.random() * 400));
       setMessages(prev => prev.map(m => 
         m.id === assistantId 
           ? { ...m, thinkingSteps: [...(m.thinkingSteps || []), step] }
@@ -80,7 +135,6 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
       ));
     }
 
-    // Simulate response generation
     setCurrentStep("Generating response...");
     setMessages(prev => prev.map(m => 
       m.id === assistantId ? { ...m, status: "generating" } : m
@@ -88,7 +142,7 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
 
     const response = `I understand you want to: **${userMessage}**
 
-Here's how I can help:
+Using **${selectedModel.name}** (${selectedModel.provider}), here's how I can help:
 
 1. First, I'll analyze your request
 2. Then I'll process the relevant information
@@ -96,7 +150,6 @@ Here's how I can help:
 
 Is there anything specific you'd like me to focus on?`;
 
-    // Simulate streaming response
     let currentContent = "";
     for (const char of response) {
       currentContent += char;
@@ -106,7 +159,6 @@ Is there anything specific you'd like me to focus on?`;
       await new Promise(r => setTimeout(r, 10));
     }
 
-    // Mark as complete
     setMessages(prev => prev.map(m => 
       m.id === assistantId ? { ...m, status: "complete" } : m
     ));
@@ -122,7 +174,6 @@ Is there anything specific you'd like me to focus on?`;
     setInput("");
     setIsProcessing(true);
 
-    // Add user message
     const userMsg: Message = {
       id: `msg-${Date.now()}`,
       role: "user",
@@ -131,11 +182,7 @@ Is there anything specific you'd like me to focus on?`;
       status: "complete",
     };
     setMessages(prev => [...prev, userMsg]);
-
-    // Trigger callback
     onSendCommand(userMessage);
-
-    // Simulate AI response
     await simulateAIResponse(userMessage);
   };
 
@@ -215,6 +262,84 @@ Is there anything specific you'd like me to focus on?`;
           )}
         </div>
 
+        {/* AI Model Selector & Features Bar */}
+        <div className="px-4 py-3 border-t border-border flex items-center justify-between gap-4 flex-wrap">
+          {/* Left - Model Selector */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground font-medium">AICoding.dev:</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="gap-2 border-primary/30 hover:border-primary bg-background"
+                >
+                  <span className="font-medium">{selectedModel.name}</span>
+                  {selectedModel.badge && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-semibold uppercase">
+                      {selectedModel.badge}
+                    </span>
+                  )}
+                  <span className={cn("w-2 h-2 rounded-full", selectedModel.color)} />
+                  <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64">
+                {Object.entries(modelsByProvider).map(([provider, models], idx) => (
+                  <div key={provider}>
+                    {idx > 0 && <DropdownMenuSeparator />}
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">{provider}</DropdownMenuLabel>
+                    {models.map((model) => (
+                      <DropdownMenuItem
+                        key={model.id}
+                        onClick={() => setSelectedModel(model)}
+                        className={cn(
+                          "flex items-center justify-between gap-2",
+                          selectedModel.id === model.id && "bg-primary/10"
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={cn("w-2 h-2 rounded-full", model.color)} />
+                          <span>{model.name}</span>
+                        </div>
+                        {model.badge && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-semibold uppercase">
+                            {model.badge}
+                          </span>
+                        )}
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+              <Settings2 className="w-4 h-4" />
+            </Button>
+          </div>
+
+          {/* Right - Feature Toggles */}
+          <div className="flex items-center gap-2">
+            {features.map((feature) => (
+              <Button
+                key={feature.id}
+                variant="outline"
+                size="sm"
+                onClick={() => toggleFeature(feature.id)}
+                className={cn(
+                  "gap-1.5 text-xs font-medium transition-all h-8",
+                  feature.enabled
+                    ? "border-primary bg-primary/10 text-primary hover:bg-primary/20"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {feature.icon}
+                {feature.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
         {/* Input Area */}
         <div className="p-4 border-t border-border">
           <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
@@ -224,7 +349,7 @@ Is there anything specific you'd like me to focus on?`;
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Message DiveCoder..."
+                placeholder="Send a message or type / for commands..."
                 className="min-h-[52px] max-h-[200px] resize-none bg-transparent border-0 focus-visible:ring-0 pr-12 py-4"
                 disabled={isProcessing}
               />
@@ -241,9 +366,6 @@ Is there anything specific you'd like me to focus on?`;
                 )}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground text-center mt-2">
-              Press Enter to send, Shift+Enter for new line
-            </p>
           </form>
         </div>
       </div>
@@ -289,6 +411,20 @@ Is there anything specific you'd like me to focus on?`;
                     <CheckCircle className="w-4 h-4 text-success" />
                     <span className="text-sm">Ready</span>
                   </>
+                )}
+              </div>
+            </div>
+
+            {/* Current Model */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Model</h3>
+              <div className="p-2 bg-muted rounded-lg flex items-center gap-2">
+                <span className={cn("w-2 h-2 rounded-full", selectedModel.color)} />
+                <span className="text-xs font-medium">{selectedModel.name}</span>
+                {selectedModel.badge && (
+                  <span className="text-[9px] px-1 py-0.5 rounded bg-primary/20 text-primary font-semibold uppercase">
+                    {selectedModel.badge}
+                  </span>
                 )}
               </div>
             </div>
