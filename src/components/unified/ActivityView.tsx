@@ -86,7 +86,7 @@ interface ActivityViewProps {
   onSendCommand: (command: string) => void;
 }
 
-export function ActivityView({ performance, onSendCommand }: ActivityViewProps) {
+export function ActivityView({ performance: initialPerformance, onSendCommand }: ActivityViewProps) {
   const { session } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -103,8 +103,22 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [currentWorkspace, setCurrentWorkspace] = useState("default");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Local performance state that updates during chat
+  const [localPerformance, setLocalPerformance] = useState({
+    totalTime: 0,
+    toolExecution: 0,
+    llmProcessing: 0,
+    characters: 0,
+    maxCharacters: 128000,
+    inputTokens: 0,
+    outputTokens: 0,
+    p50Latency: 0,
+    p95Latency: 0,
+  });
 
   // Voice input
   const { isListening, isSupported: voiceSupported, toggleListening, transcript } = useVoiceInput({
@@ -252,7 +266,7 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
     const startTime = Date.now();
     const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
     
-    const assistantId = `msg-${Date.now()}`;
+    const assistantId = crypto.randomUUID();
     setMessages(prev => [...prev, {
       id: assistantId,
       role: "assistant",
@@ -369,10 +383,21 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
       const latency = endTime - startTime;
       setLatencyHistory(prev => [...prev.slice(-19), latency]);
       
-      // Calculate approximate cost based on response length
-      const tokenEstimate = Math.ceil(assistantContent.length / 4);
-      const costEstimate = tokenEstimate * 0.000001; // Rough estimate
+      // Calculate approximate cost and update performance
+      const inputTokenEstimate = Math.ceil(userMessage.length / 4);
+      const outputTokenEstimate = Math.ceil(assistantContent.length / 4);
+      const costEstimate = (inputTokenEstimate + outputTokenEstimate) * 0.000002;
       setSessionCost(prev => prev + costEstimate);
+      
+      // Update local performance metrics
+      setLocalPerformance(prev => ({
+        ...prev,
+        totalTime: latency,
+        llmProcessing: latency - 200 * 3, // Subtract thinking delay
+        characters: prev.characters + assistantContent.length,
+        inputTokens: prev.inputTokens + inputTokenEstimate,
+        outputTokens: prev.outputTokens + outputTokenEstimate,
+      }));
 
       setMessages(prev => prev.map(m => 
         m.id === assistantId ? { ...m, status: "complete" } : m
@@ -410,7 +435,7 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
     setAbortController(controller);
 
     const userMsg: Message = {
-      id: `msg-${Date.now()}`,
+      id: crypto.randomUUID(),
       role: "user",
       content: userMessage,
       timestamp: new Date(),
@@ -490,7 +515,7 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
         )}
 
         {/* Messages */}
-        <div className="flex-1 overflow-auto">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto scroll-smooth">
           {messages.length === 0 ? (
             <WelcomeHero onSelectPrompt={handleSelectPrompt} />
           ) : (
@@ -613,10 +638,10 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
               </div>
             )}
             
-            <div className="relative bg-card rounded-2xl border-2 border-border/60 focus-within:border-primary focus-within:shadow-lg focus-within:shadow-primary/10 transition-all duration-200">
+            <div className="relative bg-card rounded-2xl border-2 border-border/60 focus-within:border-primary focus-within:shadow-lg focus-within:shadow-primary/10 transition-all duration-200 overflow-hidden">
               {/* Attachments Preview */}
               {attachments.length > 0 && (
-                <div className="p-2 border-b border-border flex flex-wrap gap-2">
+                <div className="px-3 py-2 border-b border-border flex flex-wrap gap-2">
                   {attachments.map((file) => (
                     <div
                       key={file.id}
@@ -645,9 +670,9 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
                 </div>
               )}
 
-              <div className="flex items-end">
-                {/* File Upload Button */}
-                <div className="p-2 flex items-center gap-1">
+              <div className="flex items-center gap-1 px-2">
+                {/* Left actions */}
+                <div className="flex items-center gap-0.5 flex-shrink-0">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -661,13 +686,12 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
                     variant="ghost"
                     size="icon"
                     onClick={() => fileInputRef.current?.click()}
-                    className="rounded-full h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/50"
                     disabled={isProcessing}
                   >
                     <Paperclip className="w-4 h-4" />
                   </Button>
                   
-                  {/* Voice Input */}
                   {voiceSupported && (
                     <Button
                       type="button"
@@ -675,8 +699,8 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
                       size="icon"
                       onClick={toggleListening}
                       className={cn(
-                        "rounded-full h-9 w-9",
-                        isListening ? "bg-red-500/10 text-red-500 hover:bg-red-500/20" : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                        "h-8 w-8",
+                        isListening ? "bg-red-500/10 text-red-500 hover:bg-red-500/20" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                       )}
                       disabled={isProcessing}
                     >
@@ -684,7 +708,6 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
                     </Button>
                   )}
                   
-                  {/* Export */}
                   {messages.length > 0 && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -692,7 +715,7 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="rounded-full h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/50"
                         >
                           <Download className="w-4 h-4" />
                         </Button>
@@ -706,25 +729,27 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
                   )}
                 </div>
 
+                {/* Input */}
                 <Textarea
                   ref={textareaRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Send a message or type / for commands..."
-                  className="min-h-[52px] max-h-[200px] flex-1 resize-none bg-transparent border-0 focus-visible:ring-0 focus:ring-0 ring-0 outline-none pr-12 py-3.5 text-sm placeholder:text-muted-foreground/60"
+                  className="min-h-[44px] max-h-[200px] flex-1 resize-none bg-transparent border-0 focus-visible:ring-0 focus:ring-0 ring-0 outline-none py-3 text-sm placeholder:text-muted-foreground/60"
                   disabled={isProcessing}
                   rows={1}
                 />
                 
-                <div className="p-2 flex items-center gap-2">
+                {/* Right actions */}
+                <div className="flex items-center gap-1 flex-shrink-0">
                   {isProcessing && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
                       onClick={stopGeneration}
-                      className="rounded-full h-9 w-9 hover:bg-destructive/10 hover:text-destructive"
+                      className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
                     >
                       <Square className="w-4 h-4" />
                     </Button>
@@ -733,7 +758,7 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
                     type="submit"
                     size="icon"
                     disabled={(!input.trim() && attachments.length === 0) || isProcessing}
-                    className="rounded-full h-9 w-9 bg-primary hover:bg-primary/90 shadow-sm"
+                    className="h-8 w-8 bg-primary hover:bg-primary/90 shadow-sm"
                   >
                     {isProcessing ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -770,7 +795,7 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
         onModelChange={setSelectedModel}
         models={aiModels}
         thinkingSteps={currentThinkingSteps}
-        performance={performance}
+        performance={localPerformance}
         cost={sessionCost}
         latencyHistory={latencyHistory}
       />
