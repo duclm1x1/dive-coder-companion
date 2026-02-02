@@ -1,27 +1,48 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { UnifiedHeader } from "@/components/unified/UnifiedHeader";
 import { MainTabs, MainTabId } from "@/components/unified/MainTabs";
 import { DashboardView } from "@/components/unified/DashboardView";
 import { ActivityView } from "@/components/unified/ActivityView";
 import { SettingsView } from "@/components/unified/SettingsView";
 
+export interface SharedStats {
+  totalRuns: number;
+  successRate: number;
+  completedRuns: number;
+  totalCost: number;
+  apiCalls: number;
+  activeProvider: string;
+}
+
+export interface SharedPerformance {
+  totalTime: number;
+  toolExecution: number;
+  llmProcessing: number;
+  characters: number;
+  maxCharacters: number;
+  inputTokens: number;
+  outputTokens: number;
+  p50Latency: number;
+  p95Latency: number;
+}
+
 export default function UnifiedApp() {
-  const [activeTab, setActiveTab] = useState<MainTabId>("dashboard");
-  const [isConnected, setIsConnected] = useState(false);
+  const [activeTab, setActiveTab] = useState<MainTabId>("activity");
+  const [isConnected, setIsConnected] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
 
-  // Mock stats
-  const stats = {
+  // Shared stats synced from ActivityView
+  const [sharedStats, setSharedStats] = useState<SharedStats>({
     totalRuns: 0,
-    successRate: 0,
+    successRate: 100,
     completedRuns: 0,
     totalCost: 0,
     apiCalls: 0,
-    activeProvider: isConnected ? "OpenAI" : "",
-  };
+    activeProvider: "Gemini 3 Flash",
+  });
 
-  // Mock performance
-  const performance = {
+  // Shared performance synced from ActivityView
+  const [sharedPerformance, setSharedPerformance] = useState<SharedPerformance>({
     totalTime: 0,
     toolExecution: 0,
     llmProcessing: 0,
@@ -31,7 +52,18 @@ export default function UnifiedApp() {
     outputTokens: 0,
     p50Latency: 0,
     p95Latency: 0,
-  };
+  });
+
+  // Callback to update stats from ActivityView
+  const handleStatsUpdate = useCallback((newStats: Partial<SharedStats>) => {
+    setSharedStats(prev => ({ ...prev, ...newStats }));
+    setIsConnected(true);
+  }, []);
+
+  // Callback to update performance from ActivityView
+  const handlePerformanceUpdate = useCallback((newPerf: Partial<SharedPerformance>) => {
+    setSharedPerformance(prev => ({ ...prev, ...newPerf }));
+  }, []);
 
   const handleToggleRun = () => {
     setIsRunning(!isRunning);
@@ -49,6 +81,12 @@ export default function UnifiedApp() {
   };
 
   const handleSendCommand = (command: string) => {
+    // Increment API calls when command is sent
+    setSharedStats(prev => ({
+      ...prev,
+      totalRuns: prev.totalRuns + 1,
+      apiCalls: prev.apiCalls + 1,
+    }));
     console.log("Command:", command);
   };
 
@@ -65,12 +103,14 @@ export default function UnifiedApp() {
       
       <main className="flex-1 overflow-hidden">
         {activeTab === "dashboard" && (
-          <DashboardView isConnected={isConnected} stats={stats} />
+          <DashboardView isConnected={isConnected} stats={sharedStats} />
         )}
         {activeTab === "activity" && (
           <ActivityView
-            performance={performance}
+            performance={sharedPerformance}
             onSendCommand={handleSendCommand}
+            onStatsUpdate={handleStatsUpdate}
+            onPerformanceUpdate={handlePerformanceUpdate}
           />
         )}
         {activeTab === "settings" && <SettingsView />}
