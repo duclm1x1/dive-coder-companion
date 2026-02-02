@@ -84,9 +84,11 @@ interface ActivityViewProps {
     p95Latency: number;
   };
   onSendCommand: (command: string) => void;
+  onStatsUpdate?: (stats: { totalRuns?: number; successRate?: number; completedRuns?: number; totalCost?: number; apiCalls?: number; activeProvider?: string }) => void;
+  onPerformanceUpdate?: (perf: { totalTime?: number; toolExecution?: number; llmProcessing?: number; characters?: number; inputTokens?: number; outputTokens?: number }) => void;
 }
 
-export function ActivityView({ performance: initialPerformance, onSendCommand }: ActivityViewProps) {
+export function ActivityView({ performance: initialPerformance, onSendCommand, onStatsUpdate, onPerformanceUpdate }: ActivityViewProps) {
   const { session } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -387,17 +389,29 @@ export function ActivityView({ performance: initialPerformance, onSendCommand }:
       const inputTokenEstimate = Math.ceil(userMessage.length / 4);
       const outputTokenEstimate = Math.ceil(assistantContent.length / 4);
       const costEstimate = (inputTokenEstimate + outputTokenEstimate) * 0.000002;
-      setSessionCost(prev => prev + costEstimate);
+      setSessionCost(prev => {
+        const newCost = prev + costEstimate;
+        // Sync to parent
+        onStatsUpdate?.({ totalCost: newCost });
+        return newCost;
+      });
       
       // Update local performance metrics
-      setLocalPerformance(prev => ({
-        ...prev,
+      const newPerf = {
         totalTime: latency,
-        llmProcessing: latency - 200 * 3, // Subtract thinking delay
-        characters: prev.characters + assistantContent.length,
-        inputTokens: prev.inputTokens + inputTokenEstimate,
-        outputTokens: prev.outputTokens + outputTokenEstimate,
-      }));
+        llmProcessing: Math.max(0, latency - 600), // Subtract thinking delay
+        characters: localPerformance.characters + assistantContent.length,
+        inputTokens: localPerformance.inputTokens + inputTokenEstimate,
+        outputTokens: localPerformance.outputTokens + outputTokenEstimate,
+      };
+      setLocalPerformance(prev => ({ ...prev, ...newPerf }));
+      
+      // Sync performance to parent
+      onPerformanceUpdate?.(newPerf);
+      onStatsUpdate?.({ 
+        completedRuns: messages.filter(m => m.role === "assistant" && m.status === "complete").length + 1,
+        activeProvider: selectedModel.name,
+      });
 
       setMessages(prev => prev.map(m => 
         m.id === assistantId ? { ...m, status: "complete" } : m
