@@ -1,6 +1,9 @@
-import { Zap, CheckCircle, DollarSign, Sparkles, Clock, TrendingUp, Brain, Cpu, Shield, Command, Database } from "lucide-react";
+import { Zap, CheckCircle, DollarSign, Sparkles, Clock, TrendingUp, Brain, Cpu, Shield, Command, Database, MessageSquare, Wifi, AlertCircle, Server } from "lucide-react";
 import { DIVE_CODER_VERSION, DIVE_CODER_EDITION, DIVE_STATS, DIVE_FEATURES } from "@/lib/dive-coder-config";
 import { cn } from "@/lib/utils";
+import { useActivityLog, ActivityEvent } from "@/hooks/useActivityLog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface DashboardViewProps {
   isConnected: boolean;
@@ -23,7 +26,39 @@ const featureIcons: Record<string, React.ReactNode> = {
   Sparkles: <Sparkles className="w-5 h-5" />,
 };
 
+const eventIcons: Record<ActivityEvent["type"], React.ReactNode> = {
+  chat: <MessageSquare className="w-4 h-4" />,
+  api_call: <Zap className="w-4 h-4" />,
+  model_test: <Clock className="w-4 h-4" />,
+  error: <AlertCircle className="w-4 h-4" />,
+  system: <Cpu className="w-4 h-4" />,
+  provider: <Server className="w-4 h-4" />,
+};
+
+const eventColors: Record<ActivityEvent["type"], string> = {
+  chat: "text-blue-500 bg-blue-500/10",
+  api_call: "text-emerald-500 bg-emerald-500/10",
+  model_test: "text-amber-500 bg-amber-500/10",
+  error: "text-destructive bg-destructive/10",
+  system: "text-purple-500 bg-purple-500/10",
+  provider: "text-cyan-500 bg-cyan-500/10",
+};
+
 export function DashboardView({ isConnected, stats }: DashboardViewProps) {
+  const { events, clearEvents, getRecentEvents } = useActivityLog();
+  const recentEvents = getRecentEvents(8);
+
+  const formatTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    
+    if (diff < 60000) return "just now";
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    return date.toLocaleDateString();
+  };
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6 overflow-auto">
       {/* Header with Branding */}
@@ -173,13 +208,59 @@ export function DashboardView({ isConnected, stats }: DashboardViewProps) {
       {/* Recent Activity */}
       <div className="rounded-xl bg-card border border-border p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-foreground">Recent Activity</h2>
-          <Clock className="w-5 h-5 text-muted-foreground" />
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-foreground">Recent Activity</h2>
+            {recentEvents.length > 0 && (
+              <Badge variant="secondary" className="text-xs">{events.length}</Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {events.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={clearEvents} className="text-muted-foreground">
+                Clear
+              </Button>
+            )}
+            <Clock className="w-5 h-5 text-muted-foreground" />
+          </div>
         </div>
-        <div className="text-center py-8 text-muted-foreground">
-          <p>No recent activity</p>
-          <p className="text-xs mt-1">Activity will appear here when you start using Dive Coder</p>
-        </div>
+        
+        {recentEvents.length > 0 ? (
+          <div className="space-y-2">
+            {recentEvents.map((event) => (
+              <div
+                key={event.id}
+                className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+              >
+                <div className={cn(
+                  "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                  eventColors[event.type]
+                )}>
+                  {eventIcons[event.type]}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-sm text-foreground">{event.title}</p>
+                    {event.status === "error" && (
+                      <Badge variant="destructive" className="text-xs">Error</Badge>
+                    )}
+                  </div>
+                  {event.description && (
+                    <p className="text-xs text-muted-foreground truncate">{event.description}</p>
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {formatTime(event.timestamp)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-30" />
+            <p>No recent activity</p>
+            <p className="text-xs mt-1">Activity will appear here when you use Dive Coder</p>
+          </div>
+        )}
       </div>
     </div>
   );

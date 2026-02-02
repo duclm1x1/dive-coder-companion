@@ -10,6 +10,16 @@ export interface AIModel {
   };
 }
 
+export interface ModelSpeedResult {
+  providerId: string;
+  providerName: string;
+  modelId: string;
+  latency: number;
+  success: boolean;
+  error?: string;
+  tokensPerSecond?: number;
+}
+
 export interface APIProvider {
   id: string;
   name: string;
@@ -21,6 +31,7 @@ export interface APIProvider {
   lastChecked?: string;
   isDefault?: boolean;
   error?: string;
+  modelSpeedResults?: ModelSpeedResult[];
 }
 
 const DEFAULT_PROVIDERS: APIProvider[] = [
@@ -45,9 +56,22 @@ const DEFAULT_PROVIDERS: APIProvider[] = [
 
 const STORAGE_KEY = "dive-coder-api-providers";
 
+// Popular models to test (latest/fastest variants)
+const MODELS_TO_TEST = [
+  "gpt-4o-mini",
+  "gpt-4o",
+  "claude-3-5-sonnet-20241022",
+  "claude-3-opus-20240229",
+  "claude-3-sonnet-20240229",
+  "gemini-pro",
+  "gpt-4-turbo",
+];
+
 export function useAPIProviders() {
   const [providers, setProviders] = useState<APIProvider[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [speedTestResults, setSpeedTestResults] = useState<ModelSpeedResult[]>([]);
+  const [isModelTesting, setIsModelTesting] = useState(false);
 
   // Load providers from localStorage
   useEffect(() => {
@@ -177,6 +201,101 @@ export function useAPIProviders() {
     }
   }, [providers, updateProvider]);
 
+  // Test a single model with "hi" message
+  const testModelSpeed = useCallback(async (
+    provider: APIProvider,
+    modelId: string
+  ): Promise<ModelSpeedResult> => {
+    const startTime = performance.now();
+    
+    try {
+      const response = await fetch(`${provider.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${provider.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [{ role: "user", content: "hi" }],
+          max_tokens: 50,
+          temperature: 0.7,
+        }),
+      });
+
+      const latency = Math.round(performance.now() - startTime);
+
+      if (!response.ok) {
+        return {
+          providerId: provider.id,
+          providerName: provider.name,
+          modelId,
+          latency,
+          success: false,
+          error: `HTTP ${response.status}`,
+        };
+      }
+
+      const data = await response.json();
+      const outputTokens = data.usage?.completion_tokens || 0;
+      const tokensPerSecond = outputTokens > 0 ? Math.round((outputTokens / latency) * 1000) : undefined;
+
+      return {
+        providerId: provider.id,
+        providerName: provider.name,
+        modelId,
+        latency,
+        success: true,
+        tokensPerSecond,
+      };
+    } catch (error) {
+      const latency = Math.round(performance.now() - startTime);
+      return {
+        providerId: provider.id,
+        providerName: provider.name,
+        modelId,
+        latency,
+        success: false,
+        error: error instanceof Error ? error.message : "Failed",
+      };
+    }
+  }, []);
+
+  // Run model speedtest across all connected providers
+  const runModelSpeedtest = useCallback(async (
+    onProgress?: (result: ModelSpeedResult) => void
+  ): Promise<ModelSpeedResult[]> => {
+    setIsModelTesting(true);
+    const results: ModelSpeedResult[] = [];
+    
+    const connectedProviders = providers.filter(p => p.apiKey && p.status === "connected");
+    
+    for (const provider of connectedProviders) {
+      // Get models that exist on this provider and are in our test list
+      const modelsToTest = provider.models
+        .filter(m => MODELS_TO_TEST.some(testModel => 
+          m.id.toLowerCase().includes(testModel.toLowerCase()) ||
+          testModel.toLowerCase().includes(m.id.toLowerCase())
+        ))
+        .slice(0, 3); // Test max 3 models per provider
+      
+      // If no matching models, try common ones directly
+      const testModels = modelsToTest.length > 0 
+        ? modelsToTest.map(m => m.id)
+        : ["gpt-4o-mini", "gpt-4o"].slice(0, 2);
+      
+      for (const modelId of testModels) {
+        const result = await testModelSpeed(provider, modelId);
+        results.push(result);
+        onProgress?.(result);
+      }
+    }
+    
+    setSpeedTestResults(results);
+    setIsModelTesting(false);
+    return results;
+  }, [providers, testModelSpeed]);
+
   // Run speedtest on all providers
   const runSpeedtest = useCallback(async (): Promise<Map<string, number>> => {
     const results = new Map<string, number>();
@@ -205,16 +324,30 @@ export function useAPIProviders() {
     return providers.find(p => p.isDefault) || providers[0] || null;
   }, [providers]);
 
+  // Get fastest model from speedtest results
+  const getFastestModel = useCallback((): ModelSpeedResult | null => {
+    const successful = speedTestResults.filter(r => r.success);
+    if (successful.length === 0) return null;
+    return successful.reduce((fastest, current) => 
+      current.latency < fastest.latency ? current : fastest
+    );
+  }, [speedTestResults]);
+
   return {
     providers,
     isLoading,
+    isModelTesting,
+    speedTestResults,
     addProvider,
     updateProvider,
     deleteProvider,
     setDefaultProvider,
     testConnection,
+    testModelSpeed,
+    runModelSpeedtest,
     runSpeedtest,
     getFastestProvider,
     getDefaultProvider,
+    getFastestModel,
   };
 }

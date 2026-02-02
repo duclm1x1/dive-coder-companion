@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { 
-  Plus, Trash2, RefreshCw, Zap, Check, X, AlertCircle, 
+  Plus, Trash2, RefreshCw, Zap, AlertCircle, 
   Globe, Key, Star, StarOff, Eye, EyeOff, Loader2,
-  Wifi, WifiOff, Clock, Server
+  Wifi, WifiOff, Clock, Server, Trophy, Timer
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { 
   Dialog,
   DialogContent,
@@ -28,26 +29,36 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useAPIProviders, APIProvider } from "@/hooks/useAPIProviders";
+import { useAPIProviders, APIProvider, ModelSpeedResult } from "@/hooks/useAPIProviders";
+import { useActivityLog } from "@/hooks/useActivityLog";
 import { toast } from "sonner";
 
 export function APIProviderManager() {
   const {
     providers,
     isLoading,
+    isModelTesting,
+    speedTestResults,
     addProvider,
     updateProvider,
     deleteProvider,
     setDefaultProvider,
     testConnection,
+    runModelSpeedtest,
     runSpeedtest,
+    getFastestModel,
   } = useAPIProviders();
+
+  const { logProviderEvent, logModelTest } = useActivityLog();
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isSpeedResultsOpen, setIsSpeedResultsOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<APIProvider | null>(null);
   const [isSpeedtesting, setIsSpeedtesting] = useState(false);
   const [showApiKeys, setShowApiKeys] = useState<Set<string>>(new Set());
+  const [testProgress, setTestProgress] = useState(0);
+  const [currentTestResults, setCurrentTestResults] = useState<ModelSpeedResult[]>([]);
 
   // Form state for add/edit
   const [formData, setFormData] = useState({
@@ -60,37 +71,63 @@ export function APIProviderManager() {
     setFormData({ name: "", baseUrl: "", apiKey: "" });
   };
 
-  const handleAddProvider = () => {
+  const handleAddProvider = async () => {
     if (!formData.name || !formData.baseUrl) {
       toast.error("Name and Base URL are required");
       return;
     }
 
-    addProvider(formData);
+    const newProvider = addProvider(formData);
+    logProviderEvent("added", formData.name);
     toast.success(`Provider "${formData.name}" added`);
     setIsAddDialogOpen(false);
     resetForm();
+
+    // Auto test if API key provided
+    if (formData.apiKey) {
+      toast.info(`Testing connection to ${formData.name}...`);
+      const result = await testConnection(newProvider.id);
+      if (result.success) {
+        logProviderEvent("connected", formData.name);
+        toast.success(`${formData.name}: Connected! ${result.models.length} models found`);
+      }
+    }
   };
 
-  const handleEditProvider = () => {
+  const handleEditProvider = async () => {
     if (!editingProvider) return;
 
     updateProvider(editingProvider.id, {
       name: formData.name,
       baseUrl: formData.baseUrl,
       apiKey: formData.apiKey,
-      status: "disconnected", // Reset status when credentials change
-      models: [], // Clear models to refetch
+      status: "disconnected",
+      models: [],
     });
     
+    logProviderEvent("updated", formData.name);
     toast.success(`Provider "${formData.name}" updated`);
     setIsEditDialogOpen(false);
+
+    // Auto test connection after edit
+    if (formData.apiKey) {
+      toast.info("Testing connection...");
+      const result = await testConnection(editingProvider.id);
+      if (result.success) {
+        logProviderEvent("connected", formData.name);
+        toast.success(`Connected! Running model speedtest...`);
+        // Trigger model speedtest
+        handleRunModelSpeedtest();
+      }
+    }
+
     setEditingProvider(null);
     resetForm();
   };
 
   const handleDeleteProvider = (provider: APIProvider) => {
     deleteProvider(provider.id);
+    logProviderEvent("deleted", provider.name);
     toast.success(`Provider "${provider.name}" deleted`);
   };
 
@@ -104,6 +141,7 @@ export function APIProviderManager() {
     const result = await testConnection(provider.id);
     
     if (result.success) {
+      logProviderEvent("connected", provider.name);
       toast.success(`${provider.name}: Connected! ${result.models.length} models found (${result.latency}ms)`);
     } else {
       toast.error(`${provider.name}: ${result.error}`);
@@ -112,25 +150,39 @@ export function APIProviderManager() {
 
   const handleRunSpeedtest = async () => {
     setIsSpeedtesting(true);
-    toast.info("Running speedtest on all providers...");
+    toast.info("Testing provider connections...");
     
-    const results = await runSpeedtest();
+    await runSpeedtest();
     
-    let fastest: { name: string; latency: number } | null = null;
-    results.forEach((latency, id) => {
-      const provider = providers.find(p => p.id === id);
-      if (provider && (!fastest || latency < fastest.latency)) {
-        fastest = { name: provider.name, latency };
+    toast.success("Connection test complete! Running model speedtest...");
+    await handleRunModelSpeedtest();
+    
+    setIsSpeedtesting(false);
+  };
+
+  const handleRunModelSpeedtest = async () => {
+    setCurrentTestResults([]);
+    setTestProgress(0);
+    setIsSpeedResultsOpen(true);
+
+    const connectedCount = providers.filter(p => p.apiKey && p.status === "connected").length;
+    let completed = 0;
+
+    const results = await runModelSpeedtest((result) => {
+      completed++;
+      setTestProgress(Math.round((completed / (connectedCount * 2)) * 100));
+      setCurrentTestResults(prev => [...prev, result]);
+      logModelTest(result.providerName, result.modelId, result.latency, result.success);
+      
+      if (result.success) {
+        toast.info(`${result.modelId}: ${result.latency}ms`, { duration: 2000 });
       }
     });
 
+    const fastest = results.filter(r => r.success).sort((a, b) => a.latency - b.latency)[0];
     if (fastest) {
-      toast.success(`Speedtest complete! Fastest: ${fastest.name} (${fastest.latency}ms)`);
-    } else {
-      toast.info("Speedtest complete. Configure API keys to test providers.");
+      toast.success(`🏆 Fastest: ${fastest.modelId} (${fastest.providerName}) - ${fastest.latency}ms`);
     }
-    
-    setIsSpeedtesting(false);
   };
 
   const openEditDialog = (provider: APIProvider) => {
@@ -181,6 +233,8 @@ export function APIProviderManager() {
     }
   };
 
+  const fastestModel = getFastestModel();
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-10">
@@ -205,15 +259,15 @@ export function APIProviderManager() {
             variant="outline"
             size="sm"
             onClick={handleRunSpeedtest}
-            disabled={isSpeedtesting}
+            disabled={isSpeedtesting || isModelTesting}
             className="border-border"
           >
-            {isSpeedtesting ? (
+            {isSpeedtesting || isModelTesting ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             ) : (
               <Zap className="w-4 h-4 mr-2" />
             )}
-            Speedtest All
+            Test All Models
           </Button>
           
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -264,12 +318,32 @@ export function APIProviderManager() {
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleAddProvider}>Add Provider</Button>
+                <Button onClick={handleAddProvider}>Add & Test</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
       </div>
+
+      {/* Fastest Model Banner */}
+      {fastestModel && (
+        <div className="p-4 rounded-lg bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30">
+          <div className="flex items-center gap-3">
+            <Trophy className="w-5 h-5 text-amber-500" />
+            <div className="flex-1">
+              <p className="font-medium text-foreground">Fastest Model</p>
+              <p className="text-sm text-muted-foreground">
+                <span className="font-mono text-amber-600">{fastestModel.modelId}</span>
+                {" via "}{fastestModel.providerName} • {fastestModel.latency}ms
+                {fastestModel.tokensPerSecond && ` • ~${fastestModel.tokensPerSecond} tok/s`}
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setIsSpeedResultsOpen(true)}>
+              View All Results
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Provider list */}
       <div className="space-y-3">
@@ -283,12 +357,10 @@ export function APIProviderManager() {
             }`}
           >
             <div className="flex items-start gap-4">
-              {/* Status indicator */}
               <div className="mt-1">
                 {getStatusIcon(provider.status)}
               </div>
 
-              {/* Provider info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="font-medium text-foreground">{provider.name}</span>
@@ -305,7 +377,6 @@ export function APIProviderManager() {
                   <span className="truncate">{provider.baseUrl}</span>
                 </div>
 
-                {/* API Key display */}
                 <div className="flex items-center gap-2 text-sm mb-2">
                   <Key className="w-3.5 h-3.5 text-muted-foreground" />
                   {provider.apiKey ? (
@@ -332,7 +403,6 @@ export function APIProviderManager() {
                   )}
                 </div>
 
-                {/* Stats row */}
                 <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                   {provider.latency !== undefined && (
                     <div className="flex items-center gap-1">
@@ -341,18 +411,13 @@ export function APIProviderManager() {
                     </div>
                   )}
                   {provider.models.length > 0 && (
-                    <div className="flex items-center gap-1">
-                      <span>{provider.models.length} models available</span>
-                    </div>
+                    <span>{provider.models.length} models</span>
                   )}
                   {provider.lastChecked && (
-                    <div className="flex items-center gap-1">
-                      <span>Last checked: {new Date(provider.lastChecked).toLocaleTimeString()}</span>
-                    </div>
+                    <span>Checked: {new Date(provider.lastChecked).toLocaleTimeString()}</span>
                   )}
                 </div>
 
-                {/* Error message */}
                 {provider.error && (
                   <div className="flex items-center gap-2 mt-2 text-xs text-destructive">
                     <AlertCircle className="w-3 h-3" />
@@ -360,24 +425,22 @@ export function APIProviderManager() {
                   </div>
                 )}
 
-                {/* Models list (collapsible) */}
                 {provider.models.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-1.5">
-                    {provider.models.slice(0, 8).map((model) => (
+                    {provider.models.slice(0, 6).map((model) => (
                       <Badge key={model.id} variant="secondary" className="text-xs">
                         {model.name}
                       </Badge>
                     ))}
-                    {provider.models.length > 8 && (
+                    {provider.models.length > 6 && (
                       <Badge variant="outline" className="text-xs">
-                        +{provider.models.length - 8} more
+                        +{provider.models.length - 6} more
                       </Badge>
                     )}
                   </div>
                 )}
               </div>
 
-              {/* Actions */}
               <div className="flex items-center gap-1">
                 <Button
                   variant="ghost"
@@ -426,7 +489,7 @@ export function APIProviderManager() {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete "{provider.name}"?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This will remove the provider and its API key. This action cannot be undone.
+                        This will remove the provider and its API key.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -449,7 +512,6 @@ export function APIProviderManager() {
           <div className="text-center py-10 text-muted-foreground">
             <Server className="w-10 h-10 mx-auto mb-3 opacity-50" />
             <p>No providers configured</p>
-            <p className="text-sm">Add a provider to get started</p>
           </div>
         )}
       </div>
@@ -460,7 +522,7 @@ export function APIProviderManager() {
           <DialogHeader>
             <DialogTitle>Edit Provider</DialogTitle>
             <DialogDescription>
-              Update provider configuration
+              Update provider configuration. Saving will auto-test the connection.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -482,7 +544,7 @@ export function APIProviderManager() {
               <Label>API Key</Label>
               <Input
                 type="password"
-                placeholder="Enter new key or leave empty to keep current"
+                placeholder="Enter new key or leave to keep current"
                 value={formData.apiKey}
                 onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
               />
@@ -492,19 +554,99 @@ export function APIProviderManager() {
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleEditProvider}>Save Changes</Button>
+            <Button onClick={handleEditProvider}>Save & Test</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Feature tips */}
+      {/* Speed Test Results Dialog */}
+      <Dialog open={isSpeedResultsOpen} onOpenChange={setIsSpeedResultsOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Timer className="w-5 h-5" />
+              Model Speed Comparison
+            </DialogTitle>
+            <DialogDescription>
+              Response latency for "hi" message across all providers
+            </DialogDescription>
+          </DialogHeader>
+          
+          {isModelTesting && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span>Testing models...</span>
+                <span>{testProgress}%</span>
+              </div>
+              <Progress value={testProgress} />
+            </div>
+          )}
+
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {(currentTestResults.length > 0 ? currentTestResults : speedTestResults)
+              .sort((a, b) => {
+                if (a.success && !b.success) return -1;
+                if (!a.success && b.success) return 1;
+                return a.latency - b.latency;
+              })
+              .map((result, index) => (
+                <div
+                  key={`${result.providerId}-${result.modelId}-${index}`}
+                  className={`p-3 rounded-lg border flex items-center gap-3 ${
+                    result.success 
+                      ? index === 0 ? "bg-amber-500/10 border-amber-500/30" : "bg-muted/50 border-border"
+                      : "bg-destructive/10 border-destructive/30"
+                  }`}
+                >
+                  {result.success && index === 0 && (
+                    <Trophy className="w-5 h-5 text-amber-500 shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-mono text-sm font-medium truncate">{result.modelId}</p>
+                    <p className="text-xs text-muted-foreground">{result.providerName}</p>
+                  </div>
+                  <div className="text-right">
+                    {result.success ? (
+                      <>
+                        <p className="font-mono text-lg font-bold">{result.latency}ms</p>
+                        {result.tokensPerSecond && (
+                          <p className="text-xs text-muted-foreground">~{result.tokensPerSecond} tok/s</p>
+                        )}
+                      </>
+                    ) : (
+                      <Badge variant="destructive">Failed</Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+            
+            {currentTestResults.length === 0 && speedTestResults.length === 0 && !isModelTesting && (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No speed test results yet</p>
+                <p className="text-xs mt-1">Run "Test All Models" to compare</p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSpeedResultsOpen(false)}>
+              Close
+            </Button>
+            <Button onClick={handleRunModelSpeedtest} disabled={isModelTesting}>
+              {isModelTesting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Re-test
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tips */}
       <div className="p-4 rounded-lg bg-muted/30 border border-border">
         <h4 className="font-medium text-sm text-foreground mb-2">💡 Tips</h4>
         <ul className="text-xs text-muted-foreground space-y-1">
-          <li>• <strong>Auto-connect:</strong> Click refresh to test connection and fetch available models</li>
-          <li>• <strong>Speedtest:</strong> Run speedtest to compare latency across all configured providers</li>
+          <li>• <strong>Auto-test:</strong> Adding/editing a provider automatically tests connection & models</li>
+          <li>• <strong>Model Speedtest:</strong> Sends "hi" to each model and measures response time</li>
           <li>• <strong>Default provider:</strong> Star a provider to use it as default for new chats</li>
-          <li>• <strong>Fallback:</strong> If default fails, system will try other connected providers</li>
         </ul>
       </div>
     </div>
