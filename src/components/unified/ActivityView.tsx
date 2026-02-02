@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { 
   Send, User, Bot, Square,
-  Loader2, ChevronDown, Settings2, Command
+  Loader2, ChevronDown, Settings2, Command, Globe, Zap, Check
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -444,6 +444,11 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
                   size="sm"
                   className="gap-2 border-primary/30 hover:border-primary bg-background"
                 >
+                  <div className="flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                    <span className="text-[10px] font-bold text-cyan-400">AICoding.dev</span>
+                  </div>
+                  <span className="text-muted-foreground">|</span>
                   <span className="font-medium">{selectedModel.name}</span>
                   {selectedModel.badge && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-semibold uppercase">
@@ -454,11 +459,29 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
                   <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-64">
+              <DropdownMenuContent align="start" className="w-72">
+                {/* AICoding.dev Header */}
+                <div className="px-3 py-2 border-b border-border">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-cyan-400" />
+                    <span className="font-bold text-cyan-400">AICoding.dev</span>
+                    <span className="ml-auto flex items-center gap-1 text-xs text-emerald-400">
+                      <Check className="w-3 h-3" />
+                      Connected
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Multi-model AI gateway • Web-enabled
+                  </p>
+                </div>
+                
                 {Object.entries(modelsByProvider).map(([provider, models], idx) => (
                   <div key={provider}>
                     {idx > 0 && <DropdownMenuSeparator />}
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">{provider}</DropdownMenuLabel>
+                    <DropdownMenuLabel className="text-xs text-muted-foreground flex items-center gap-2">
+                      <Zap className="w-3 h-3" />
+                      {provider}
+                    </DropdownMenuLabel>
                     {models.map((model) => (
                       <DropdownMenuItem
                         key={model.id}
@@ -481,6 +504,18 @@ export function ActivityView({ performance, onSendCommand }: ActivityViewProps) 
                     ))}
                   </div>
                 ))}
+                
+                {/* Web Features */}
+                <DropdownMenuSeparator />
+                <div className="px-3 py-2 text-[10px] text-muted-foreground">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Globe className="w-3 h-3 text-cyan-400" />
+                    <span>Web Search Enabled</span>
+                  </div>
+                  <p className="text-muted-foreground/70">
+                    Models can search the web for real-time information
+                  </p>
+                </div>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
