@@ -24,11 +24,13 @@ import { ThinkingPanel } from "@/components/chat/ThinkingPanel";
 import { SkillsBrowser } from "@/components/chat/SkillsBrowser";
 import { WorkspaceSwitcher } from "@/components/chat/WorkspaceSwitcher";
 import { InlineThinking } from "@/components/chat/InlineThinking";
+import { FileDropZone } from "@/components/chat/FileDropZone";
 import { SLASH_COMMANDS, DIVE_CODER_VERSION } from "@/lib/dive-coder-config";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { exportToMarkdown, downloadExport, printToPDF } from "@/lib/exportChat";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useChatContext } from "@/contexts/ChatContext";
 
 interface AIModel {
   id: string;
@@ -90,15 +92,25 @@ interface ActivityViewProps {
 
 export function ActivityView({ performance: initialPerformance, onSendCommand, onStatsUpdate, onPerformanceUpdate }: ActivityViewProps) {
   const { session } = useAuth();
-  const [messages, setMessages] = useState<Message[]>([]);
+  
+  // Use context for persistent state
+  const { 
+    state: chatState, 
+    setMessages, 
+    setConversationTitle, 
+    setSessionCost, 
+    setLatencyHistory, 
+    setSelectedModel, 
+    setLocalPerformance 
+  } = useChatContext();
+  
+  const { messages, conversationTitle, sessionCost, latencyHistory, selectedModel, localPerformance } = chatState;
+  
+  // Local ephemeral state (OK to reset)
   const [input, setInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentStep, setCurrentStep] = useState("");
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<AIModel>(aiModels[0]);
-  const [sessionCost, setSessionCost] = useState(0);
-  const [latencyHistory, setLatencyHistory] = useState<number[]>([]);
-  const [conversationTitle, setConversationTitle] = useState("");
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
@@ -108,19 +120,6 @@ export function ActivityView({ performance: initialPerformance, onSendCommand, o
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // Local performance state that updates during chat
-  const [localPerformance, setLocalPerformance] = useState({
-    totalTime: 0,
-    toolExecution: 0,
-    llmProcessing: 0,
-    characters: 0,
-    maxCharacters: 128000,
-    inputTokens: 0,
-    outputTokens: 0,
-    p50Latency: 0,
-    p95Latency: 0,
-  });
 
   // Voice input
   const { isListening, isSupported: voiceSupported, toggleListening, transcript } = useVoiceInput({
@@ -158,8 +157,8 @@ export function ActivityView({ performance: initialPerformance, onSendCommand, o
     text: ['text/plain', 'text/markdown', 'application/json'],
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  // Process files from either input or drag-drop
+  const processFiles = useCallback((files: File[]) => {
     const maxSize = 20 * 1024 * 1024; // 20MB
     const maxFiles = 10;
 
@@ -192,9 +191,22 @@ export function ActivityView({ performance: initialPerformance, onSendCommand, o
       newAttachments.push(attachment);
     }
 
-    setAttachments(prev => [...prev, ...newAttachments]);
+    if (newAttachments.length > 0) {
+      setAttachments(prev => [...prev, ...newAttachments]);
+      toast.success(`${newAttachments.length} file(s) added`);
+    }
+  }, [attachments.length]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    processFiles(files);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
+
+  const handleFilesDropped = useCallback((files: File[]) => {
+    processFiles(files);
+    textareaRef.current?.focus();
+  }, [processFiles]);
 
   const removeAttachment = (id: string) => {
     setAttachments(prev => {
@@ -518,7 +530,11 @@ export function ActivityView({ performance: initialPerformance, onSendCommand, o
     : [];
 
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <FileDropZone 
+      onFilesDropped={handleFilesDropped} 
+      disabled={isProcessing}
+      className="flex flex-1 overflow-hidden"
+    >
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Conversation Title Bar */}
@@ -813,6 +829,6 @@ export function ActivityView({ performance: initialPerformance, onSendCommand, o
         cost={sessionCost}
         latencyHistory={latencyHistory}
       />
-    </div>
+    </FileDropZone>
   );
 }

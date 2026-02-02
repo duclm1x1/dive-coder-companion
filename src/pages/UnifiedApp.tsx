@@ -4,6 +4,7 @@ import { MainTabs, MainTabId } from "@/components/unified/MainTabs";
 import { DashboardView } from "@/components/unified/DashboardView";
 import { ActivityView } from "@/components/unified/ActivityView";
 import { SettingsView } from "@/components/unified/SettingsView";
+import { ChatProvider } from "@/contexts/ChatContext";
 
 export interface SharedStats {
   totalRuns: number;
@@ -26,7 +27,7 @@ export interface SharedPerformance {
   p95Latency: number;
 }
 
-export default function UnifiedApp() {
+function UnifiedAppContent() {
   const [activeTab, setActiveTab] = useState<MainTabId>("activity");
   const [isConnected, setIsConnected] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
@@ -116,5 +117,13 @@ export default function UnifiedApp() {
         {activeTab === "settings" && <SettingsView />}
       </main>
     </div>
+  );
+}
+
+export default function UnifiedApp() {
+  return (
+    <ChatProvider>
+      <UnifiedAppContent />
+    </ChatProvider>
   );
 }
