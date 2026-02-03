@@ -16,15 +16,28 @@ const MAX_EVENTS = 100;
 export function useActivityLog() {
   const [events, setEvents] = useState<ActivityEvent[]>([]);
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount with defensive parsing
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        setEvents(JSON.parse(saved));
-      } catch {
-        setEvents([]);
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Validate each event has required fields
+        const valid = Array.isArray(parsed)
+          ? parsed.filter(e =>
+              typeof e === 'object' &&
+              e !== null &&
+              typeof e.id === 'string' &&
+              typeof e.type === 'string' &&
+              typeof e.title === 'string'
+            )
+          : [];
+        setEvents(valid);
       }
+    } catch (e) {
+      console.warn("Failed to load activity log:", e);
+      localStorage.removeItem(STORAGE_KEY);
+      setEvents([]);
     }
   }, []);
 
