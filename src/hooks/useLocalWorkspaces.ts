@@ -31,9 +31,29 @@ const defaultWorkspaces: Workspace[] = [
   },
 ];
 
-// Check if File System Access API is supported
+// Check if running in an iframe (cross-origin iframes block file picker)
+const isInIframe = () => {
+  try {
+    return window.self !== window.top;
+  } catch (e) {
+    return true; // If we can't access window.top, we're in a cross-origin iframe
+  }
+};
+
+// Check if File System Access API is supported and usable
 export const isFileSystemAccessSupported = () => {
-  return 'showDirectoryPicker' in window;
+  return 'showDirectoryPicker' in window && !isInIframe();
+};
+
+// Get reason why file picker is not available
+export const getFilePickerUnavailableReason = () => {
+  if (!('showDirectoryPicker' in window)) {
+    return "Your browser doesn't support folder selection. Use Chrome or Edge.";
+  }
+  if (isInIframe()) {
+    return "Folder picker is not available in preview mode. Open the published app directly to use this feature.";
+  }
+  return null;
 };
 
 export function useLocalWorkspaces() {
@@ -99,8 +119,9 @@ export function useLocalWorkspaces() {
 
   // Pick a directory using File System Access API
   const pickDirectory = useCallback(async (): Promise<{ path: string; handle: FileSystemDirectoryHandle } | null> => {
-    if (!isFileSystemAccessSupported()) {
-      toast.error("Your browser doesn't support folder selection. Use Chrome or Edge.");
+    const unavailableReason = getFilePickerUnavailableReason();
+    if (unavailableReason) {
+      toast.error(unavailableReason);
       return null;
     }
 
