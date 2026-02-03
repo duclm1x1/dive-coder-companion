@@ -22,7 +22,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { useLocalWorkspaces, isFileSystemAccessSupported, Workspace } from "@/hooks/useLocalWorkspaces";
+import { useLocalWorkspaces, isFileSystemAccessSupported, getFilePickerUnavailableReason, Workspace } from "@/hooks/useLocalWorkspaces";
 import { cn } from "@/lib/utils";
 import { DIVE_CODER_VERSION } from "@/lib/dive-coder-config";
 import { UserHeader } from "@/components/layout/UserHeader";
@@ -61,8 +61,9 @@ export function UnifiedHeader({
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const handleBrowseFolder = async () => {
-    if (!isFileSystemSupported) {
-      toast.error("Your browser doesn't support folder selection. Use Chrome or Edge.");
+    const unavailableReason = getFilePickerUnavailableReason();
+    if (unavailableReason) {
+      toast.error(unavailableReason);
       return;
     }
 
@@ -100,8 +101,9 @@ export function UnifiedHeader({
   };
 
   const handleAddWithFolderPicker = async () => {
-    if (!isFileSystemSupported) {
-      toast.error("Your browser doesn't support folder selection. Use Chrome or Edge.");
+    const unavailableReason = getFilePickerUnavailableReason();
+    if (unavailableReason) {
+      toast.error(unavailableReason);
       return;
     }
 
@@ -384,7 +386,7 @@ export function UnifiedHeader({
 
             {!isFileSystemSupported && (
               <p className="text-xs text-amber-500 bg-amber-500/10 p-2 rounded">
-                ⚠️ Folder selection requires Chrome or Edge browser. You can still enter a path manually.
+                ⚠️ {getFilePickerUnavailableReason() || "Folder selection requires Chrome or Edge browser."} You can still enter a path manually.
               </p>
             )}
           </div>
