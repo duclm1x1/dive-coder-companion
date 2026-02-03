@@ -1,4 +1,5 @@
-import { Zap, CheckCircle, DollarSign, Sparkles, Clock, Brain, Cpu, Shield, Command, Database, MessageSquare, AlertCircle, Server, Gauge, Activity, BarChart3, Trash2 } from "lucide-react";
+import { useEffect } from "react";
+import { Zap, CheckCircle, DollarSign, Sparkles, Clock, Brain, Cpu, Shield, Command, Database, MessageSquare, AlertCircle, Server, Gauge, Activity, BarChart3, Trash2, RefreshCw, Users } from "lucide-react";
 import { DIVE_CODER_VERSION, DIVE_CODER_EDITION, DIVE_STATS, DIVE_FEATURES } from "@/lib/dive-coder-config";
 import { cn } from "@/lib/utils";
 import { useActivityLog, ActivityEvent } from "@/hooks/useActivityLog";
@@ -6,10 +7,11 @@ import { useMetricsHistory, AggregatedMetrics } from "@/hooks/useMetricsHistory"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { useDiveBackend } from "@/hooks/useDiveBackend";
 
 interface DashboardViewProps {
-  isConnected: boolean;
-  stats: {
+  isConnected?: boolean;
+  stats?: {
     totalRuns: number;
     successRate: number;
     completedRuns: number;
@@ -46,13 +48,49 @@ const eventColors: Record<ActivityEvent["type"], string> = {
   provider: "text-cyan-500 bg-cyan-500/10",
 };
 
-export function DashboardView({ isConnected, stats }: DashboardViewProps) {
+export function DashboardView({ isConnected: propIsConnected, stats: propStats }: DashboardViewProps) {
   const { events, clearEvents, getRecentEvents } = useActivityLog();
   const { getAggregatedMetrics, clearMetrics, snapshots } = useMetricsHistory();
   const recentEvents = getRecentEvents(8);
   
+  // Use Dive Backend hook for real-time data
+  const { 
+    isConnected: backendConnected, 
+    status, 
+    stats: backendStats, 
+    agents,
+    isLoading,
+    error,
+    refresh,
+    connect,
+    disconnect
+  } = useDiveBackend();
+
+  // Use backend connection status if available, fallback to props
+  const isConnected = backendConnected || propIsConnected || false;
+  
+  // Merge backend stats with props and local metrics
+  const stats = {
+    totalRuns: backendStats?.totalRuns ?? propStats?.totalRuns ?? 0,
+    successRate: backendStats?.successRate ?? propStats?.successRate ?? 0,
+    completedRuns: propStats?.completedRuns ?? 0,
+    totalCost: backendStats?.totalCost ?? propStats?.totalCost ?? 0,
+    apiCalls: propStats?.apiCalls ?? 0,
+    activeProvider: backendStats?.activeProvider ?? propStats?.activeProvider ?? "None",
+  };
+
+  // Count active agents
+  const activeAgents = agents.filter(a => a.status === 'busy').length;
+  const totalAgents = agents.length || 128;
+  
   // Get aggregated metrics with history
   const metrics: AggregatedMetrics = getAggregatedMetrics();
+
+  // Initialize connection on mount
+  useEffect(() => {
+    connect('user-lovable', 'Lovable User');
+    return () => disconnect();
+  }, [connect, disconnect]);
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -68,6 +106,10 @@ export function DashboardView({ isConnected, stats }: DashboardViewProps) {
   const handleClearAll = () => {
     clearEvents();
     clearMetrics();
+  };
+
+  const handleRefresh = () => {
+    refresh();
   };
 
   return (
@@ -115,21 +157,66 @@ export function DashboardView({ isConnected, stats }: DashboardViewProps) {
         </div>
         <div className="flex-1">
           <p className={cn("font-medium", isConnected ? "text-success" : "text-warning")}>
-            {isConnected ? "Dive Coder is running" : "Waiting for Dive Coder"}
+            {isConnected ? "Dive AI V20 Connected" : "Waiting for Dive AI V20"}
           </p>
           <p className="text-sm text-muted-foreground">
             {isConnected 
-              ? `${snapshots.length} metrics recorded • Live monitoring active` 
-              : "Start Dive Coder to see live monitoring data"}
+              ? `${activeAgents}/${totalAgents} agents active • ${status?.models || 0} models available` 
+              : error || "Start Dive AI backend to see live monitoring data"}
           </p>
         </div>
-        {isConnected && (
-          <div className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-            <span className="text-xs text-success font-medium">LIVE</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleRefresh}
+            disabled={isLoading}
+            className="text-muted-foreground"
+          >
+            <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
+          </Button>
+          {isConnected && (
+            <div className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+              <span className="text-xs text-success font-medium">LIVE</span>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Agent Status Summary (when connected) */}
+      {isConnected && agents.length > 0 && (
+        <div className="grid grid-cols-4 gap-3">
+          <div className="p-3 rounded-lg bg-card border border-border">
+            <div className="flex items-center gap-2 text-muted-foreground mb-1">
+              <Users className="w-4 h-4" />
+              <span className="text-xs">Total Agents</span>
+            </div>
+            <p className="text-xl font-bold">{totalAgents}</p>
+          </div>
+          <div className="p-3 rounded-lg bg-card border border-success/20">
+            <div className="flex items-center gap-2 text-success mb-1">
+              <Zap className="w-4 h-4" />
+              <span className="text-xs">Active</span>
+            </div>
+            <p className="text-xl font-bold text-success">{activeAgents}</p>
+          </div>
+          <div className="p-3 rounded-lg bg-card border border-border">
+            <div className="flex items-center gap-2 text-muted-foreground mb-1">
+              <Clock className="w-4 h-4" />
+              <span className="text-xs">Idle</span>
+            </div>
+            <p className="text-xl font-bold">{agents.filter(a => a.status === 'idle').length}</p>
+          </div>
+          <div className="p-3 rounded-lg bg-card border border-destructive/20">
+            <div className="flex items-center gap-2 text-destructive mb-1">
+              <AlertCircle className="w-4 h-4" />
+              <span className="text-xs">Errors</span>
+            </div>
+            <p className="text-xl font-bold text-destructive">{agents.filter(a => a.status === 'error').length}</p>
+          </div>
+        </div>
+      )}
 
       {/* V19.5 Features Grid */}
       <div>
