@@ -1,13 +1,79 @@
-// Backend API client for Dive Coder V19.5
-// Connects to Supabase Edge Functions
+// Backend API client for Dive AI V20
+// Connects to tRPC backend with Socket.IO real-time
 
 import { supabase } from "@/integrations/supabase/client";
 
-export type TaskType = "scrape" | "review" | "build" | "search" | "analyze";
+// tRPC API URL
+const API_URL = 'https://3000-iym918g1udg3z0fllnp0o-5536f345.us2.manus.computer/api/trpc';
+
+export interface SystemStatus {
+  connected: boolean;
+  components: {
+    diveOrchestrator: boolean;
+    masterOrchestrator: boolean;
+    multiModelReview: boolean;
+    diveCoder: boolean;
+  };
+  agentCount: number;
+  models: number;
+}
+
+export interface DashboardStats {
+  totalRuns: number;
+  successRate: number;
+  totalCost: number;
+  activeProvider: string;
+}
+
+export interface Agent {
+  id: number;
+  status: 'idle' | 'busy' | 'error';
+  capabilities: number;
+  currentTask: string | null;
+  progress: number;
+  lastActive: Date;
+}
+
+export interface Model {
+  id: string;
+  name: string;
+  provider: string;
+  status: 'available' | 'unavailable';
+  pricing: { input: number; output: number };
+  specialization: string[];
+  score: number;
+  usage: { tasks: number; cost: number };
+}
+
+export interface ActivityItem {
+  type: string;
+  userId: string;
+  timestamp: Date;
+  [key: string]: unknown;
+}
+
+export type TaskType = "scrape" | "review" | "build" | "search" | "analyze" | "code_generation" | "code_review";
+
+export interface ExecuteTaskInput {
+  type: TaskType;
+  payload: Record<string, unknown>;
+  options?: {
+    model?: string;
+    timeout?: number;
+    agentCount?: number;
+  };
+}
 
 export interface TaskResult<T = unknown> {
   success: boolean;
-  data?: T;
+  data?: T & {
+    output?: string;
+    confidence?: number;
+    cost?: number;
+    executionTime?: number;
+    agentsUsed?: number;
+    thinking?: string[];
+  };
   error?: string;
 }
 
@@ -39,26 +105,149 @@ export interface SearchResult {
   analysis: string;
 }
 
-// API client object
+// tRPC helper - makes batch requests to tRPC endpoint
+async function trpcQuery<T>(procedure: string, input?: unknown): Promise<T> {
+  const url = new URL(API_URL);
+  url.pathname += `/${procedure}`;
+  
+  if (input !== undefined) {
+    url.searchParams.set('input', JSON.stringify({ "0": input }));
+  }
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`tRPC query failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data[0]?.result?.data as T;
+}
+
+async function trpcMutation<T>(procedure: string, input: unknown): Promise<T> {
+  const response = await fetch(`${API_URL}/${procedure}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ "0": input }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`tRPC mutation failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data[0]?.result?.data as T;
+}
+
+// API client object - combines tRPC and legacy Supabase methods
 export const backendApi = {
-  // Execute any task type
+  // ===== NEW tRPC METHODS (Dive AI V20) =====
+  
+  // Get system status
+  async getStatus(): Promise<SystemStatus> {
+    try {
+      return await trpcQuery<SystemStatus>('uiBridge.getStatus');
+    } catch (error) {
+      console.error('[tRPC] getStatus failed:', error);
+      return {
+        connected: false,
+        components: {
+          diveOrchestrator: false,
+          masterOrchestrator: false,
+          multiModelReview: false,
+          diveCoder: false,
+        },
+        agentCount: 0,
+        models: 0,
+      };
+    }
+  },
+
+  // Get dashboard stats
+  async getStats(): Promise<DashboardStats> {
+    try {
+      return await trpcQuery<DashboardStats>('uiBridge.getStats');
+    } catch (error) {
+      console.error('[tRPC] getStats failed:', error);
+      return {
+        totalRuns: 0,
+        successRate: 0,
+        totalCost: 0,
+        activeProvider: 'None',
+      };
+    }
+  },
+
+  // Get agents
+  async getAgents(): Promise<Agent[]> {
+    try {
+      return await trpcQuery<Agent[]>('uiBridge.getAgents');
+    } catch (error) {
+      console.error('[tRPC] getAgents failed:', error);
+      return [];
+    }
+  },
+
+  // Get models
+  async getModels(): Promise<Model[]> {
+    try {
+      return await trpcQuery<Model[]>('uiBridge.getModels');
+    } catch (error) {
+      console.error('[tRPC] getModels failed:', error);
+      return [];
+    }
+  },
+
+  // Get activity
+  async getActivity(limit?: number): Promise<ActivityItem[]> {
+    try {
+      return await trpcQuery<ActivityItem[]>('uiBridge.getActivity', { limit });
+    } catch (error) {
+      console.error('[tRPC] getActivity failed:', error);
+      return [];
+    }
+  },
+
+  // ===== LEGACY SUPABASE METHODS (kept for compatibility) =====
+
+  // Execute any task type (supports both tRPC and Supabase)
   async executeTask<T = unknown>(
     type: TaskType,
     payload: Record<string, unknown>,
-    options?: { model?: string; timeout?: number }
+    options?: { model?: string; timeout?: number; agentCount?: number }
   ): Promise<TaskResult<T>> {
-    const { data, error } = await supabase.functions.invoke("task-execute", {
-      body: { type, payload, options },
-    });
+    // Try tRPC first (Dive AI V20)
+    try {
+      const result = await trpcMutation<TaskResult<T>>('uiBridge.executeTask', {
+        type,
+        payload,
+        options,
+      });
+      return result;
+    } catch (trpcError) {
+      console.warn('[tRPC] executeTask failed, falling back to Supabase:', trpcError);
+      
+      // Fallback to Supabase edge function
+      const { data, error } = await supabase.functions.invoke("task-execute", {
+        body: { type, payload, options },
+      });
 
-    if (error) {
-      return { success: false, error: error.message };
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return data;
     }
-
-    return data;
   },
 
-  // Scrape a URL
+  // Scrape a URL (Supabase)
   async scrape(url: string, options?: { formats?: string[] }): Promise<TaskResult<ScrapeResult>> {
     const { data, error } = await supabase.functions.invoke("firecrawl-scrape", {
       body: { url, options },
@@ -68,7 +257,6 @@ export const backendApi = {
       return { success: false, error: error.message };
     }
 
-    // Handle nested data structure
     const result = data?.data || data;
     return { success: data?.success !== false, data: result, error: data?.error };
   },
@@ -97,7 +285,7 @@ export const backendApi = {
     return result as TaskResult<SearchResult>;
   },
 
-  // Stream chat message
+  // Stream chat message (Supabase)
   async streamChat(params: {
     messages: Array<{ role: "user" | "assistant"; content: string }>;
     model?: string;
@@ -169,7 +357,6 @@ export const backendApi = {
               params.onDelta(content);
             }
           } catch {
-            // Incomplete JSON, put back
             textBuffer = line + "\n" + textBuffer;
             break;
           }
