@@ -105,16 +105,27 @@ function aggregateCumulativePoints(snapshots: MetricsSnapshot[], getValue: (s: M
 export function useMetricsHistory() {
   const [snapshots, setSnapshots] = useState<MetricsSnapshot[]>([]);
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount with defensive parsing
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
         const parsed = JSON.parse(saved);
-        setSnapshots(Array.isArray(parsed) ? parsed : []);
-      } catch {
-        setSnapshots([]);
+        // Validate each snapshot has required fields
+        const valid = Array.isArray(parsed) 
+          ? parsed.filter(s => 
+              typeof s === 'object' && 
+              s !== null &&
+              typeof s.id === 'string' &&
+              typeof s.timestamp === 'number'
+            )
+          : [];
+        setSnapshots(valid);
       }
+    } catch (e) {
+      console.warn("Failed to load metrics history:", e);
+      localStorage.removeItem(STORAGE_KEY);
+      setSnapshots([]);
     }
   }, []);
 
